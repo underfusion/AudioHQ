@@ -1,0 +1,96 @@
+<Window x:Class="AudioHQ.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="AudioHQ"
+        Background="{StaticResource BgBrush}"
+        SizeToContent="Width"
+        Height="430"
+        ResizeMode="CanMinimize">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Top" Margin="2,0,0,10">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="AudioHQ" Foreground="{StaticResource TextBrush}" FontSize="16" FontWeight="Bold"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="source:" Foreground="{StaticResource DimTextBrush}" FontSize="12"
+                           VerticalAlignment="Center" Margin="14,0,6,0" />
+                <ComboBox ItemsSource="{Binding Sources}"
+                          SelectedItem="{Binding SelectedSource}"
+                          DisplayMemberPath="FriendlyName"
+                          Width="280" VerticalAlignment="Center" />
+                <TextBlock Text="latency:" Foreground="{StaticResource DimTextBrush}" FontSize="12"
+                           VerticalAlignment="Center" Margin="14,0,6,0" />
+                <ComboBox ItemsSource="{Binding LatencyPresets}"
+                          SelectedItem="{Binding SelectedLatency}"
+                          Width="130" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding EngineStatus}" Foreground="{StaticResource AccentRed}"
+                       FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding EngineStatus}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal">
+            <!-- Master strip -->
+            <Border Style="{StaticResource StripCard}" Margin="0">
+                <StackPanel>
+                    <TextBlock Text="MASTER" Style="{StaticResource StripName}" Height="20" />
+                    <TextBlock Text="{Binding SourceName}" Foreground="{StaticResource DimTextBrush}"
+                               FontSize="10" TextWrapping="Wrap" Height="26" TextAlignment="Center" />
+                    <ToggleButton Content="MUTE" Style="{StaticResource PillToggle}"
+                                  Tag="{StaticResource AccentRed}"
+                                  IsChecked="{Binding MasterMuted}" />
+                    <Slider Style="{StaticResource Fader}" Minimum="0" Maximum="1"
+                            Value="{Binding MasterVolume, Mode=TwoWay}" />
+                    <TextBlock Text="{Binding MasterPercent}" HorizontalAlignment="Center"
+                               FontSize="12" FontWeight="Bold"
+                               Foreground="{Binding MasterVolume, Converter={StaticResource GainToBrush}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Output strips -->
+            <ItemsControl ItemsSource="{Binding Channels}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource StripCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource StripName}" />
+                                <ToggleButton Content="ON" Style="{StaticResource PillToggle}"
+                                              Tag="{StaticResource AccentGreen}"
+                                              IsChecked="{Binding IsActive}" />
+                                <ToggleButton Content="MUTE" Style="{StaticResource PillToggle}"
+                                              Tag="{StaticResource AccentRed}"
+                                              IsChecked="{Binding IsMuted}" />
+                                <ToggleButton Content="EQ" Style="{StaticResource PillToggle}"
+                                              Tag="{StaticResource AccentBlue}"
+                                              IsEnabled="False" />
+                                <Slider Style="{StaticResource Fader}" Minimum="0" Maximum="1.5"
+                                        Value="{Binding Gain, Mode=TwoWay}" />
+                                <TextBlock Text="{Binding GainPercent}" HorizontalAlignment="Center"
+                                           FontSize="12" FontWeight="Bold"
+                                           Foreground="{Binding Gain, Converter={StaticResource GainToBrush}}" />
+                                <TextBlock Text="{Binding Status}" Foreground="{StaticResource AccentRed}"
+                                           FontSize="10" TextWrapping="Wrap" TextAlignment="Center" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </DockPanel>
+</Window>

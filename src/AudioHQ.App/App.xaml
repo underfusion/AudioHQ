@@ -1,0 +1,73 @@
+<Application x:Class="AudioHQ.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:AudioHQ.App"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <local:GainToBrushConverter x:Key="GainToBrush" />
+
+        <SolidColorBrush x:Key="BgBrush" Color="#FF161A22" />
+        <SolidColorBrush x:Key="CardBrush" Color="#FF222834" />
+        <SolidColorBrush x:Key="TextBrush" Color="#FFE2E7F0" />
+        <SolidColorBrush x:Key="DimTextBrush" Color="#FF8B93A5" />
+        <SolidColorBrush x:Key="ButtonBrush" Color="#FF2D3545" />
+        <SolidColorBrush x:Key="AccentGreen" Color="#FF22C55E" />
+        <SolidColorBrush x:Key="AccentRed" Color="#FFEF4444" />
+        <SolidColorBrush x:Key="AccentBlue" Color="#FF3B82F6" />
+
+        <Style x:Key="StripCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBrush}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Width" Value="118" />
+        </Style>
+
+        <Style x:Key="StripName" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Height" Value="42" />
+            <Setter Property="TextAlignment" Value="Center" />
+        </Style>
+
+        <ControlTemplate x:Key="PillToggleTemplate" TargetType="ToggleButton">
+            <Border x:Name="Pill"
+                    Background="{StaticResource ButtonBrush}"
+                    CornerRadius="7"
+                    Height="26">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  TextElement.FontSize="11"
+                                  TextElement.FontWeight="Bold"
+                                  TextElement.Foreground="{StaticResource DimTextBrush}" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Pill" Property="Background" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                    <Setter Property="TextElement.Foreground" Value="White" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.85" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.4" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="PillToggle" TargetType="ToggleButton">
+            <Setter Property="Template" Value="{StaticResource PillToggleTemplate}" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="Fader" TargetType="Slider">
+            <Setter Property="Orientation" Value="Vertical" />
+            <Setter Property="Height" Value="170" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,10,0,4" />
+        </Style>
+    </Application.Resources>
+</Application>
