@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    CANONICAL VERSION - single source of truth for the whole solution.
+    Rules (see CLAUDE.md "Versioning"):
+      - bump the PATCH digit on EVERY edit batch (0.1.0 -> 0.1.1 -> ... -> 0.1.99)
+      - MINOR bumps (0.1 -> 0.2) only on explicit user approval
+      - update CHANGELOG.md and review docs/ARCHITECTURE.md with every bump
+    All projects under src/ inherit this file automatically (MSBuild convention).
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Product>AudioHQ</Product>
+    <Authors>underfusion</Authors>
+  </PropertyGroup>
+
+</Project>
