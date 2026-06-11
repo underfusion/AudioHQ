@@ -117,10 +117,10 @@ tools/             helper scripts (icon generator, screenshot capture)
 
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md) - one entry per version.
 - **Architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - technical deep dive.
-- **Project rules:** [CLAUDE.md](CLAUDE.md) - versioning, structure, git and style.
 
 The canonical version lives in `Directory.Build.props` and is shown in the window title.
 
 ## License
 
-Private - all rights reserved (for now).
+[MIT](LICENSE) - free to use, modify, distribute and sell, including
+commercially. The only condition is keeping the copyright notice. No warranty.

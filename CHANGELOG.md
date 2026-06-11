@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.2.7 - 2026-06-11
+
+### Changed
+- Licensed under MIT (was "private, all rights reserved"). Added a `LICENSE`
+  file and updated the README license section. Fully permissive: use, modify,
+  distribute and sell, keep the copyright notice, no warranty.
+- Removed `CLAUDE.md` (internal AI-agent instructions) from the public repo and
+  added it to `.gitignore`; dropped its now-dead link from the README.
+
 ## 0.2.6 - 2026-06-11
 
 Portable release packaging.

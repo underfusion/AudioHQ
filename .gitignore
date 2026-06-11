@@ -66,3 +66,5 @@ coverage/
 # Claude Code GUI / local agent files
 .claude-gui-temp/
 .claude/settings.local.json
+# Internal AI-agent instructions - kept out of the public repo
+CLAUDE.md
