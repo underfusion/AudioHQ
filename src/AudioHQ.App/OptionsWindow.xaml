@@ -1,0 +1,34 @@
+<Window x:Class="AudioHQ.App.OptionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AudioHQ - Options"
+        Background="{StaticResource BgBrush}"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <StackPanel Margin="20" MinWidth="300">
+        <TextBlock Text="Options" Foreground="{StaticResource TextBrush}"
+                   FontSize="15" FontWeight="Bold" Margin="0,0,0,14" />
+
+        <TextBlock Text="source" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,0,0,4" />
+        <ComboBox ItemsSource="{Binding Sources}"
+                  SelectedItem="{Binding SelectedSource}"
+                  DisplayMemberPath="FriendlyName" />
+
+        <TextBlock Text="latency" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,14,0,4" />
+        <ComboBox ItemsSource="{Binding LatencyPresets}"
+                  SelectedItem="{Binding SelectedLatency}" />
+
+        <TextBlock Text="tray &amp; startup" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,18,0,6" />
+        <CheckBox Content="Close to system tray" Foreground="{StaticResource TextBrush}"
+                  IsChecked="{Binding CloseToTray}" Margin="0,0,0,6" Cursor="Hand" />
+        <CheckBox Content="Minimize to system tray" Foreground="{StaticResource TextBrush}"
+                  IsChecked="{Binding MinimizeToTray}" Margin="0,0,0,6" Cursor="Hand" />
+        <CheckBox Content="Run with Windows" Foreground="{StaticResource TextBrush}"
+                  IsChecked="{Binding RunWithWindows}" Cursor="Hand" />
+
+        <Button Content="Close" Click="Close_Click" Width="80" Height="28"
+                HorizontalAlignment="Right" Margin="0,20,0,0" Cursor="Hand" />
+    </StackPanel>
+</Window>
