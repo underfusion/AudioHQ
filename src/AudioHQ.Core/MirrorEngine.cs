@@ -102,14 +102,20 @@ public sealed class OutputChannel : IDisposable
             BufferDuration = TimeSpan.FromSeconds(2),
         };
 
-        ISampleProvider pipeline = _buffer.ToSampleProvider();
-
         int targetRate = mixFormat.SampleRate;
-        if (captureFormat.SampleRate != targetRate)
-        {
-            pipeline = new WdlResamplingSampleProvider(pipeline, targetRate);
-            Log.Write($"OutputChannel: resampling {captureFormat.SampleRate} -> {targetRate}");
-        }
+        // Trough (minimum backlog) the controller steers toward. It must stay ABOVE the
+        // WASAPI pull granularity (~latencyMs per render callback) plus delivery jitter, or
+        // the buffer underruns at the low point and we feed silence (crackle). latency + 5ms
+        // is the trimmed-down margin; still under the hard resync at latency + 25ms so normal
+        // drift never trips it. Raise back toward +10 if a jittery source starts to crackle.
+        double targetBacklogMs = latencyMs + 5.0;
+        ISampleProvider pipeline = new AdaptiveResampler(
+            _buffer.ToSampleProvider(),
+            targetRate,
+            () => _buffer.BufferedDuration.TotalSeconds,
+            targetBacklogMs / 1000.0,
+            device.FriendlyName);
+        Log.Write($"OutputChannel: adaptive resampling {captureFormat.SampleRate} -> {targetRate}, target backlog={targetBacklogMs:0}ms");
 
         _volume = new VolumeSampleProvider(pipeline) { Volume = _gain };
 
@@ -148,8 +154,9 @@ public sealed class OutputChannel : IDisposable
 
     internal void Write(byte[] buffer, int count)
     {
-        // If the queue outgrows the target (slow device, clock drift), resync instead of
-        // letting the delay creep up permanently.
+        // Safety net only: AdaptiveResampler normally holds the backlog near its target,
+        // but a stall or a big jump (device hiccup, format glitch) can still overrun it.
+        // In that case drop the whole queue rather than let the delay creep up permanently.
         if (_buffer.BufferedDuration > _maxBacklog)
         {
             _buffer.ClearBuffer();

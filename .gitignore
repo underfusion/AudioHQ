@@ -17,6 +17,7 @@ env/
 dist/
 build/
 out/
+release/
 *.tsbuildinfo
 
 # .NET

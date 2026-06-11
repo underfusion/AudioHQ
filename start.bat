@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-taskkill /im AudioHQ.App.exe /f >nul 2>&1
+taskkill /im AudioHQ.exe /f >nul 2>&1
 echo Building AudioHQ...
 dotnet build src\AudioHQ.App --nologo -v minimal
 if errorlevel 1 (
@@ -9,4 +9,4 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-start "" "src\AudioHQ.App\bin\Debug\net7.0-windows\AudioHQ.App.exe"
+start "" "src\AudioHQ.App\bin\Debug\net7.0-windows\AudioHQ.exe"
