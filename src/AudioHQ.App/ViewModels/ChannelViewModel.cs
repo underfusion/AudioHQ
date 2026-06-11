@@ -5,26 +5,83 @@ using NAudio.CoreAudioApi;
 
 namespace AudioHQ.App.ViewModels;
 
-/// <summary>One output strip: toggles mirroring to a physical device on/off.</summary>
+/// <summary>
+/// One curated output strip: maps a physical device (by id) to a user-named,
+/// reorderable channel with its own gain/mute. The device may be offline
+/// (saved but currently unplugged) or equal to the source (cannot mirror to itself).
+/// </summary>
 public sealed class ChannelViewModel : ViewModelBase
 {
     private readonly MirrorEngine _engine;
     private readonly Func<int> _latencyMs;
+    private readonly Action _onChanged;
     private OutputChannel? _channel;
 
     private bool _isActive;
     private bool _isMuted;
-    private double _gain = 1.0;
+    private double _gain;
+    private string _name;
+    private bool _isSource;
+    private bool _isEditing;
     private string _status = "";
 
-    public MMDevice Device { get; }
-    public string Name => Device.FriendlyName;
+    /// <summary>Stable persisted identity of the target device.</summary>
+    public string DeviceId { get; }
 
-    public ChannelViewModel(MirrorEngine engine, MMDevice device, Func<int> latencyMs)
+    /// <summary>Resolved device, or null when the saved device is not currently present.</summary>
+    public MMDevice? Device { get; private set; }
+
+    public ChannelViewModel(MirrorEngine engine, string deviceId, MMDevice? device,
+        string name, double gain, Func<int> latencyMs, Action onChanged)
     {
         _engine = engine;
+        DeviceId = deviceId;
         Device = device;
         _latencyMs = latencyMs;
+        _onChanged = onChanged;
+        _gain = gain;
+        _name = string.IsNullOrWhiteSpace(name) ? (device?.FriendlyName ?? "Channel") : name;
+    }
+
+    /// <summary>True only when the channel can actually mirror (device present and not the source).</summary>
+    public bool IsAvailable => Device is not null && !_isSource;
+
+    /// <summary>Persisted "was ON" intent; the mixer activates these once the engine is up.</summary>
+    public bool PendingActive { get; set; }
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            var trimmed = (value ?? "").Trim();
+            if (trimmed.Length == 0 || trimmed == _name) return;
+            _name = trimmed;
+            OnPropertyChanged();
+            _onChanged();
+        }
+    }
+
+    /// <summary>Inline rename mode (toggled from the UI).</summary>
+    public bool IsEditing
+    {
+        get => _isEditing;
+        set { _isEditing = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>Set by the mixer when this channel targets the current source device.</summary>
+    public bool IsSource
+    {
+        get => _isSource;
+        set
+        {
+            if (_isSource == value) return;
+            _isSource = value;
+            if (value && _isActive) IsActive = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsAvailable));
+            RefreshUnavailableStatus();
+        }
     }
 
     public bool IsActive
@@ -36,9 +93,16 @@ public sealed class ChannelViewModel : ViewModelBase
 
             if (value)
             {
+                if (!IsAvailable)
+                {
+                    RefreshUnavailableStatus();
+                    OnPropertyChanged();
+                    return;
+                }
+
                 try
                 {
-                    _channel = _engine.AddOutput(Device, _latencyMs());
+                    _channel = _engine.AddOutput(Device!, _latencyMs());
                     _channel.Gain = (float)_gain;
                     _channel.Muted = _isMuted;
                     Status = "";
@@ -80,6 +144,7 @@ public sealed class ChannelViewModel : ViewModelBase
             }
 
             OnPropertyChanged();
+            _onChanged();
         }
     }
 
@@ -103,6 +168,7 @@ public sealed class ChannelViewModel : ViewModelBase
             if (_channel is not null) _channel.Gain = (float)value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(GainPercent));
+            _onChanged();
         }
     }
 
@@ -113,4 +179,28 @@ public sealed class ChannelViewModel : ViewModelBase
         get => _status;
         private set { _status = value; OnPropertyChanged(); }
     }
+
+    /// <summary>Re-point this channel at a (re)discovered device, or null when it goes offline.</summary>
+    public void SetDevice(MMDevice? device)
+    {
+        Device = device;
+        OnPropertyChanged(nameof(IsAvailable));
+        if (device is null && _isActive) IsActive = false;
+        RefreshUnavailableStatus();
+    }
+
+    private void RefreshUnavailableStatus()
+    {
+        if (_isSource) Status = "= source";
+        else if (Device is null) Status = "Offline";
+        else if (!_isActive) Status = "";
+    }
+
+    public ChannelDefinition ToDefinition() => new()
+    {
+        DeviceId = DeviceId,
+        Name = _name,
+        Gain = _gain,
+        Active = _isActive,
+    };
 }

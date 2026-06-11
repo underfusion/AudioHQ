@@ -16,6 +16,7 @@ start.bat                    kill running app -> build -> launch (daily driver)
 src/
   AudioHQ.Core/              audio engine, no UI dependencies
     MirrorEngine.cs          capture + fan-out to N OutputChannels (gain/mute each)
+    AdaptiveResampler.cs     per-output drift compensation (holds backlog steady)
     LoopbackMirror.cs        milestone-1 single-target mirror (used by CLI)
     AudioDevices.cs          WASAPI render-endpoint enumeration
     AppVersion.cs            exposes Directory.Build.props version to UIs
@@ -37,9 +38,9 @@ CHANGELOG.md                 one entry per version bump
 
 - Canonical version = `<Version>` in `Directory.Build.props`. Nowhere else.
 - Bump the PATCH digit on EVERY edit batch you make (one bump per commit):
-  `0.1.0 -> 0.1.1 -> ... -> 0.1.99`.
-- MINOR bumps (`0.1 -> 0.2`) happen ONLY when the user explicitly says so.
-  Same for `1.0`. Never decide these yourself.
+  `0.2.0 -> 0.2.1 -> ... -> 0.2.9 -> 0.3.0 -> 0.3.1 -> ...` (10 patches per minor).
+- MINOR bumps (`0.2 -> 0.3`) happen automatically when PATCH reaches 9.
+  MAJOR bumps (`0.X -> 1.0`) happen ONLY when the user explicitly says so.
 - Every bump updates `CHANGELOG.md` (what changed, one short block) and
   re-checks `docs/ARCHITECTURE.md` - if the change touched anything described
   there, fix the description in the same commit.

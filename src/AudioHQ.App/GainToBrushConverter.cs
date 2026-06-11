@@ -5,7 +5,7 @@ using System.Windows.Media;
 
 namespace AudioHQ.App;
 
-/// <summary>Fader color follows gain: green (normal) -> amber (hot) -> red (boost).</summary>
+/// <summary>Fader color follows gain: green (up to 100%) -> amber (boost) -> red (max boost).</summary>
 public sealed class GainToBrushConverter : IValueConverter
 {
     private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
@@ -15,7 +15,8 @@ public sealed class GainToBrushConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         double gain = value is double d ? d : 0;
-        return gain <= 0.8 ? Green : gain <= 1.0 ? Amber : Red;
+        // Green up to (and at) 100% unity; amber in the boost zone; red near max boost.
+        return gain <= 1.0 ? Green : gain <= 1.25 ? Amber : Red;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
