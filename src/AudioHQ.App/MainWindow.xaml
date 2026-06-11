@@ -1,0 +1,213 @@
+<Window x:Class="AudioHQ.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="AudioHQ"
+        Background="{StaticResource BgBrush}"
+        SizeToContent="Width"
+        Height="440"
+        ResizeMode="CanMinimize">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Top" Margin="2,0,0,10">
+            <!-- Title row: AudioHQ label left, options gear right. -->
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="AudioHQ" Foreground="{StaticResource TextBrush}" FontSize="16" FontWeight="Bold"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="VersionText" Foreground="{StaticResource DimTextBrush}" FontSize="11"
+                               VerticalAlignment="Center" Margin="6,3,0,0" />
+                </StackPanel>
+                <Button x:Name="OptionsButton" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Style="{StaticResource IconButton}" Width="26" Height="26"
+                        ToolTip="Options - source &amp; latency" Click="Options_Click">
+                    <Viewbox Width="16" Height="16">
+                        <Path Fill="{StaticResource DimTextBrush}"
+                              Data="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 6.166a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843zM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5z" />
+                    </Viewbox>
+                </Button>
+            </Grid>
+            <TextBlock Text="{Binding EngineStatus}" Foreground="{StaticResource AccentRed}"
+                       FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding EngineStatus}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal">
+            <!-- Master strip: source's Windows volume. Lighter shade + accent border. -->
+            <Border Style="{StaticResource MasterCard}">
+                <StackPanel>
+                    <!-- Header zone. -->
+                    <Grid Height="46">
+                        <TextBlock Text="MASTER" VerticalAlignment="Top" HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}" FontSize="11" FontWeight="SemiBold"
+                                   Height="20" />
+                        <TextBlock Text="{Binding MasterName}" VerticalAlignment="Top" Margin="0,20,0,0"
+                                   Foreground="{StaticResource DimTextBrush}" FontSize="10"
+                                   TextWrapping="Wrap" TextAlignment="Center"
+                                   ToolTip="Double-click to rename"
+                                   MouseLeftButtonDown="MasterName_MouseLeftButtonDown">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEditingMaster}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBox Style="{StaticResource RenameBox}" VerticalAlignment="Top" Margin="0,20,0,0"
+                                 Visibility="{Binding IsEditingMaster, Converter={StaticResource BoolToVis}}"
+                                 Text="{Binding MasterName, UpdateSourceTrigger=LostFocus}"
+                                 KeyDown="MasterRenameBox_KeyDown" LostFocus="MasterRenameBox_LostFocus"
+                                 IsVisibleChanged="RenameBox_IsVisibleChanged" />
+                    </Grid>
+                    <!-- Controls zone: ON (always on, placeholder) + EQ placeholder. -->
+                    <StackPanel Style="{StaticResource ControlsZone}">
+                        <ToggleButton Content="ON" Style="{StaticResource PillToggle}"
+                                      Tag="{StaticResource AccentGreen}" IsChecked="True" IsEnabled="False" />
+                        <ToggleButton Content="EQ" Style="{StaticResource PillToggle}"
+                                      Tag="{StaticResource AccentBlue}" IsEnabled="False" />
+                    </StackPanel>
+                    <!-- Fader: balance column left = labels column right, so slider is visually centred. -->
+                    <Grid HorizontalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <!-- Solid 100% reference line behind the fader. -->
+                        <Rectangle Grid.Column="1" Width="30" Height="2" Fill="{StaticResource AccentGreen}"
+                                   VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,15,0,0"
+                                   IsHitTestVisible="False" />
+                        <Slider Grid.Column="1" Style="{StaticResource Fader}" Minimum="0" Maximum="1"
+                                Ticks="0.25,0.5,0.75" Value="{Binding MasterVolume, Mode=TwoWay}"
+                                PreviewMouseLeftButtonDown="Fader_PreviewMouseLeftButtonDown" />
+                        <Canvas Grid.Column="2" Width="24" Height="170" Margin="2,10,0,4">
+                            <TextBlock Style="{StaticResource ScaleLabel}" Text="100" Canvas.Top="0" />
+                            <TextBlock Style="{StaticResource ScaleLabel}" Text="50" Canvas.Top="79" />
+                        </Canvas>
+                    </Grid>
+                    <TextBlock Text="{Binding MasterPercent}" HorizontalAlignment="Center"
+                               FontSize="12" FontWeight="Bold"
+                               Foreground="{Binding MasterVolume, Converter={StaticResource GainToBrush}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Output strips: curated, reorderable, renamable. -->
+            <ItemsControl ItemsSource="{Binding Channels}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource StripCard}" AllowDrop="True"
+                                Drop="Channel_Drop" DragOver="Channel_DragOver">
+                            <StackPanel>
+                                <!-- Header zone: grip + remove on top, name (or rename box) below. -->
+                                <Grid Height="46">
+                                    <DockPanel VerticalAlignment="Top" Height="16">
+                                        <TextBlock Text="&#x2630;" DockPanel.Dock="Left"
+                                                   Foreground="{StaticResource DimTextBrush}"
+                                                   FontSize="11" Cursor="SizeAll" ToolTip="Drag to reorder"
+                                                   MouseLeftButtonDown="Grip_MouseLeftButtonDown" />
+                                        <Button Content="&#x2715;" DockPanel.Dock="Right"
+                                                Style="{StaticResource IconButton}" Width="16" Height="16"
+                                                ToolTip="Remove channel"
+                                                Command="{Binding DataContext.RemoveChannelCommand,
+                                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                        <TextBlock />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding Name}"
+                                               Margin="0,16,0,0" ToolTip="Double-click to rename"
+                                               MouseLeftButtonDown="Name_MouseLeftButtonDown">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource StripName}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBox Style="{StaticResource RenameBox}" Margin="0,18,0,0"
+                                             VerticalAlignment="Top"
+                                             Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
+                                             Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                                             KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus"
+                                             IsVisibleChanged="RenameBox_IsVisibleChanged" />
+                                </Grid>
+                                <!-- Controls zone: ON/OFF toggle + EQ placeholder. -->
+                                <StackPanel Style="{StaticResource ControlsZone}">
+                                    <ToggleButton Tag="{StaticResource AccentGreen}"
+                                                  IsChecked="{Binding IsActive}">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource PillToggle}">
+                                                <Setter Property="Content" Value="ON" />
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsChecked" Value="False">
+                                                        <Setter Property="Content" Value="OFF" />
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton Content="EQ" Style="{StaticResource PillToggle}"
+                                                  Tag="{StaticResource AccentBlue}"
+                                                  IsEnabled="False" />
+                                </StackPanel>
+                                <!-- Fader zone: double-click anywhere here resets gain to 100%. -->
+                                <StackPanel PreviewMouseLeftButtonDown="FaderZone_PreviewMouseLeftButtonDown">
+                                    <Grid HorizontalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="24" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <!-- Solid 100% (unity) reference line behind the fader. -->
+                                        <Rectangle Grid.Column="1" Width="30" Height="2" Fill="{StaticResource AccentGreen}"
+                                                   VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,68,0,0"
+                                                   IsHitTestVisible="False" />
+                                        <Slider Grid.Column="1" Style="{StaticResource Fader}" Minimum="0" Maximum="1.5"
+                                                Ticks="0.5,1.5" Value="{Binding Gain, Mode=TwoWay}" />
+                                        <Canvas Grid.Column="2" Width="24" Height="170" Margin="2,10,0,4">
+                                            <TextBlock Style="{StaticResource ScaleLabel}" Text="150" Canvas.Top="0" />
+                                            <TextBlock Style="{StaticResource ScaleLabel}" Text="100" Canvas.Top="52" />
+                                            <TextBlock Style="{StaticResource ScaleLabel}" Text="50" Canvas.Top="105" />
+                                        </Canvas>
+                                    </Grid>
+                                    <TextBlock Text="{Binding GainPercent}" HorizontalAlignment="Center"
+                                               FontSize="12" FontWeight="Bold"
+                                               Foreground="{Binding Gain, Converter={StaticResource GainToBrush}}" />
+                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource AccentRed}"
+                                               FontSize="10" TextWrapping="Wrap" TextAlignment="Center" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Add-channel placeholder: click to pick an unused device. -->
+            <Border Style="{StaticResource AddCard}">
+                <Button Style="{StaticResource IconButton}" Content="&#x2b;" FontSize="24"
+                        VerticalAlignment="Center" ToolTip="Add channel"
+                        Click="AddChannel_Click" />
+            </Border>
+        </StackPanel>
+    </DockPanel>
+</Window>

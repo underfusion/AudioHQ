@@ -17,7 +17,15 @@ env/
 dist/
 build/
 out/
+release/
 *.tsbuildinfo
+
+# .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
 
 # Environment & secrets
 .env
@@ -54,3 +62,7 @@ desktop.ini
 .cache/
 coverage/
 *.pid
+
+# Claude Code GUI / local agent files
+.claude-gui-temp/
+.claude/settings.local.json

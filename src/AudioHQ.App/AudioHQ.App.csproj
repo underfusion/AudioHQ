@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AudioHQ.Core\AudioHQ.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Product exe is AudioHQ.exe (not AudioHQ.App.exe); process name is "AudioHQ". -->
+    <AssemblyName>AudioHQ</AssemblyName>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms is enabled only for System.Windows.Forms.NotifyIcon (tray). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embedded in the exe so the tray loads it from a resource stream - no file
+         needs to sit next to the exe (keeps the portable build a single file). -->
+    <EmbeddedResource Include="app.ico" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,150 @@
+<Application x:Class="AudioHQ.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:AudioHQ.App"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <local:GainToBrushConverter x:Key="GainToBrush" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <SolidColorBrush x:Key="BgBrush" Color="#FF161A22" />
+        <SolidColorBrush x:Key="CardBrush" Color="#FF222834" />
+        <SolidColorBrush x:Key="MasterCardBrush" Color="#FF2A3550" />
+        <SolidColorBrush x:Key="MasterBorderBrush" Color="#FF4A557A" />
+        <SolidColorBrush x:Key="TextBrush" Color="#FFE2E7F0" />
+        <SolidColorBrush x:Key="DimTextBrush" Color="#FF8B93A5" />
+        <SolidColorBrush x:Key="ButtonBrush" Color="#FF2D3545" />
+        <SolidColorBrush x:Key="AccentGreen" Color="#FF22C55E" />
+        <SolidColorBrush x:Key="AccentRed" Color="#FFEF4444" />
+        <SolidColorBrush x:Key="AccentBlue" Color="#FF3B82F6" />
+
+        <Style x:Key="StripCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBrush}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Width" Value="118" />
+        </Style>
+
+        <Style x:Key="StripName" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="TextAlignment" Value="Center" />
+        </Style>
+
+        <ControlTemplate x:Key="PillToggleTemplate" TargetType="ToggleButton">
+            <Border x:Name="Pill"
+                    Background="{StaticResource ButtonBrush}"
+                    CornerRadius="7"
+                    Height="26">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  TextElement.FontSize="11"
+                                  TextElement.FontWeight="Bold"
+                                  TextElement.Foreground="{StaticResource DimTextBrush}" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Pill" Property="Background" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                    <Setter Property="TextElement.Foreground" Value="White" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.85" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.4" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="PillToggle" TargetType="ToggleButton">
+            <Setter Property="Template" Value="{StaticResource PillToggleTemplate}" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="Fader" TargetType="Slider">
+            <Setter Property="Orientation" Value="Vertical" />
+            <Setter Property="Height" Value="170" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,10,0,4" />
+            <!-- Threshold ticks; per-slider Ticks set where the strip is declared. -->
+            <Setter Property="TickPlacement" Value="Both" />
+            <Setter Property="IsSnapToTickEnabled" Value="False" />
+            <!-- Single click jumps the thumb to the clicked point (double-click snaps to 100%). -->
+            <Setter Property="IsMoveToPointEnabled" Value="True" />
+        </Style>
+
+        <!-- Small numeral printed beside a fader tick (the "numbers" on the scale). -->
+        <Style x:Key="ScaleLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource DimTextBrush}" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <!-- Master strip: same geometry as a channel card, set apart by a lighter
+             shade and a thin accent border so the eye separates it from the outputs. -->
+        <Style x:Key="MasterCard" TargetType="Border" BasedOn="{StaticResource StripCard}">
+            <Setter Property="Background" Value="{StaticResource MasterCardBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource MasterBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+
+        <!-- Fixed-height zone above the fader; identical on master and channels so
+             every slider starts at the same Y. -->
+        <Style x:Key="ControlsZone" TargetType="StackPanel">
+            <Setter Property="Height" Value="60" />
+        </Style>
+
+        <!-- Small square glyph button (rename pencil is inline; this is the remove x / add +). -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource DimTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource ButtonBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Inline rename field shown over the channel name while editing. -->
+        <Style x:Key="RenameBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource BgBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- Outlined placeholder card the user clicks to add a new channel. -->
+        <Style x:Key="AddCard" TargetType="Border" BasedOn="{StaticResource StripCard}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource ButtonBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Width" Value="58" />
+        </Style>
+    </Application.Resources>
+</Application>
