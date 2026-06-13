@@ -13,6 +13,8 @@ public sealed class ChannelDefinition
     public string Name { get; set; } = "";
     public double Gain { get; set; } = 1.0;
     public bool Active { get; set; }
+    // Per-channel graphic EQ; null on channels saved before EQ existed (treated as off).
+    public EqSettings? Eq { get; set; }
 }
 
 /// <summary>
@@ -27,6 +29,9 @@ public sealed class MixerSettings
     public string? MasterName { get; set; }
     public int LatencyMs { get; set; } = 30;
     public List<ChannelDefinition> Channels { get; set; } = new();
+
+    // App-wide saved EQ presets (shared across channels).
+    public List<EqPreset> EqPresets { get; set; } = new();
 
     // Tray behaviour (see TrayController). RunWithWindows mirrors the HKCU Run key.
     public bool CloseToTray { get; set; }

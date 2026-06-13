@@ -72,10 +72,11 @@
                                  KeyDown="MasterRenameBox_KeyDown" LostFocus="MasterRenameBox_LostFocus"
                                  IsVisibleChanged="RenameBox_IsVisibleChanged" />
                     </Grid>
-                    <!-- Controls zone: ON (always on, placeholder) + EQ placeholder. -->
+                    <!-- Controls zone: mute toggle (mutes the whole master) + EQ placeholder.
+                         Master EQ is N/A - the source device itself is not mirrored. -->
                     <StackPanel Style="{StaticResource ControlsZone}">
-                        <ToggleButton Content="ON" Style="{StaticResource PillToggle}"
-                                      Tag="{StaticResource AccentGreen}" IsChecked="True" IsEnabled="False" />
+                        <ToggleButton Style="{StaticResource MuteToggle}" IsChecked="{Binding MasterMuted}"
+                                      ToolTip="Mute the master (the whole mirrored source)" />
                         <ToggleButton Content="EQ" Style="{StaticResource PillToggle}"
                                       Tag="{StaticResource AccentBlue}" IsEnabled="False" />
                     </StackPanel>
@@ -166,9 +167,8 @@
                                             </Style>
                                         </ToggleButton.Style>
                                     </ToggleButton>
-                                    <ToggleButton Content="EQ" Style="{StaticResource PillToggle}"
-                                                  Tag="{StaticResource AccentBlue}"
-                                                  IsEnabled="False" />
+                                    <Button Style="{StaticResource EqPillButton}"
+                                            ToolTip="Equalizer" Click="ChannelEq_Click" />
                                 </StackPanel>
                                 <!-- Fader zone: double-click anywhere here resets gain to 100%. -->
                                 <StackPanel PreviewMouseLeftButtonDown="FaderZone_PreviewMouseLeftButtonDown">

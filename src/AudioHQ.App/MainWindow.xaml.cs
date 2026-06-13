@@ -75,6 +75,13 @@ public partial class MainWindow : Window
         new OptionsWindow { Owner = this, DataContext = _viewModel }.ShowDialog();
     }
 
+    // Open the graphic-EQ editor for the channel whose EQ pill was clicked.
+    private void ChannelEq_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is ChannelViewModel channel)
+            new EqWindow { Owner = this, DataContext = channel }.ShowDialog();
+    }
+
     // Double-click the master fader to snap it back to 100% (unity).
     private void Fader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

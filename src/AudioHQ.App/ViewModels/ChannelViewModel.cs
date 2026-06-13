@@ -15,6 +15,8 @@ public sealed class ChannelViewModel : ViewModelBase
     private readonly MirrorEngine _engine;
     private readonly Func<int> _latencyMs;
     private readonly Action _onChanged;
+    private readonly EqViewModel _eq;
+    private readonly EqPresetStore _presets;
     private OutputChannel? _channel;
 
     private bool _isActive;
@@ -32,16 +34,36 @@ public sealed class ChannelViewModel : ViewModelBase
     public MMDevice? Device { get; private set; }
 
     public ChannelViewModel(MirrorEngine engine, string deviceId, MMDevice? device,
-        string name, double gain, Func<int> latencyMs, Action onChanged)
+        string name, double gain, Func<int> latencyMs, Action onChanged,
+        EqPresetStore presets, EqSettings? eq = null)
     {
         _engine = engine;
         DeviceId = deviceId;
         Device = device;
         _latencyMs = latencyMs;
         _onChanged = onChanged;
+        _presets = presets;
         _gain = gain;
         _name = string.IsNullOrWhiteSpace(name) ? (device?.FriendlyName ?? "Channel") : name;
+        _eq = new EqViewModel(eq, ApplyEq);
     }
+
+    /// <summary>The editable graphic EQ for this channel (bound by the EQ editor window).</summary>
+    public EqViewModel Eq => _eq;
+
+    /// <summary>App-wide saved EQ presets (bound by the EQ editor's preset picker).</summary>
+    public EqPresetStore EqPresets => _presets;
+
+    /// <summary>Push the current EQ curve onto the live output (if active) and persist it.</summary>
+    private void ApplyEq()
+    {
+        _channel?.Equalizer.Configure(_eq.ToSettings());
+        OnPropertyChanged(nameof(EqEnabled));
+        _onChanged();
+    }
+
+    /// <summary>True when the EQ is switched on (drives the EQ pill highlight).</summary>
+    public bool EqEnabled => _eq.Enabled;
 
     /// <summary>True only when the channel can actually mirror (device present and not the source).</summary>
     public bool IsAvailable => Device is not null && !_isSource;
@@ -105,6 +127,7 @@ public sealed class ChannelViewModel : ViewModelBase
                     _channel = _engine.AddOutput(Device!, _latencyMs());
                     _channel.Gain = (float)_gain;
                     _channel.Muted = _isMuted;
+                    _channel.Equalizer.Configure(_eq.ToSettings());
                     Status = "";
                     _isActive = true;
                 }
@@ -202,5 +225,6 @@ public sealed class ChannelViewModel : ViewModelBase
         Name = _name,
         Gain = _gain,
         Active = _isActive,
+        Eq = _eq.ToSettings(),
     };
 }
