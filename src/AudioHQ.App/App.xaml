@@ -66,6 +66,54 @@
             <Setter Property="Cursor" Value="Hand" />
         </Style>
 
+        <!-- Master mute pill: green "ON" while playing, red "MUTE" when the master is muted. -->
+        <ControlTemplate x:Key="MuteToggleTemplate" TargetType="ToggleButton">
+            <Border x:Name="Pill" Background="{StaticResource AccentGreen}" CornerRadius="7" Height="26">
+                <TextBlock x:Name="Txt" Text="ON" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="11" FontWeight="Bold" Foreground="White" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource AccentRed}" />
+                    <Setter TargetName="Txt" Property="Text" Value="MUTED" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.85" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="MuteToggle" TargetType="ToggleButton">
+            <Setter Property="Template" Value="{StaticResource MuteToggleTemplate}" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- EQ pill: a button (click opens the editor) that lights up blue while the EQ is on. -->
+        <Style x:Key="EqPillButton" TargetType="Button">
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Pill" Background="{StaticResource ButtonBrush}" CornerRadius="7" Height="26">
+                            <TextBlock x:Name="Txt" Text="EQ" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontSize="11" FontWeight="Bold" Foreground="{StaticResource DimTextBrush}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding EqEnabled}" Value="True">
+                                <Setter TargetName="Pill" Property="Background" Value="{StaticResource AccentBlue}" />
+                                <Setter TargetName="Txt" Property="Foreground" Value="White" />
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Pill" Property="Opacity" Value="0.85" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="Fader" TargetType="Slider">
             <Setter Property="Orientation" Value="Vertical" />
             <Setter Property="Height" Value="170" />

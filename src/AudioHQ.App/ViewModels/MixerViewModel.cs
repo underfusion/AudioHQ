@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using AudioHQ.App;
 using AudioHQ.Core;
 using NAudio.CoreAudioApi;
@@ -23,12 +25,18 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 {
     private readonly MirrorEngine _engine = new();
     private readonly MixerSettings _settings;
+    private readonly EqPresetStore _eqPresets;
+    private readonly DispatcherTimer _healthTimer;
     private MMDevice? _selectedSource;
     private string _engineStatus = "";
     private LatencyPreset _selectedLatency;
     private bool _loaded;
     private bool _dirty;
     private bool _isEditingMaster;
+    private bool _recovering;
+
+    /// <summary>How often the background watchdog re-checks devices and engine health.</summary>
+    private static readonly TimeSpan HealthInterval = TimeSpan.FromSeconds(3);
 
     public ObservableCollection<MMDevice> Sources { get; } = new();
     public ObservableCollection<ChannelViewModel> Channels { get; } = new();
@@ -46,7 +54,9 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     public MixerViewModel()
     {
         _settings = MixerSettings.Load();
+        _eqPresets = new EqPresetStore(_settings.EqPresets, Save);
         RemoveChannelCommand = new RelayCommand(p => RemoveChannel(p as ChannelViewModel));
+        _engine.SourceLost += OnEngineSourceLost;
 
         foreach (var device in AudioDevices.GetActiveRenderDevices())
             Sources.Add(device);
@@ -71,6 +81,139 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         // Keep the HKCU Run entry in step with the saved preference (refreshes the
         // exe path if the app was moved since it was first enabled).
         StartupRegistration.Set(_settings.RunWithWindows);
+
+        // Background watchdog: keeps the device list current and recovers the engine if the
+        // source ever drops out (see OnEngineSourceLost / HealthCheck).
+        _healthTimer = new DispatcherTimer { Interval = HealthInterval };
+        _healthTimer.Tick += (_, _) => HealthCheck();
+        _healthTimer.Start();
+    }
+
+    // --- Source-loss handling & background recovery -----------------------------
+
+    /// <summary>
+    /// Engine callback (may be off the UI thread) for an unsolicited capture stop. Marshals to
+    /// the UI thread and kicks off recovery.
+    /// </summary>
+    private void OnEngineSourceLost(Exception? error)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(new Action(() => HandleSourceLost(error)));
+        else
+            HandleSourceLost(error);
+    }
+
+    private void HandleSourceLost(Exception? error)
+    {
+        Log.Write($"MixerViewModel: source lost ({error?.Message ?? "device removed"}), recovering");
+        EngineStatus = $"Source '{SourceName}' disconnected - recovering...";
+        TryRecover();
+    }
+
+    /// <summary>
+    /// Periodic watchdog: refresh the device list and, if capture has died or the source device
+    /// has vanished without a clean stop, try to recover. A healthy engine is left untouched.
+    /// </summary>
+    private void HealthCheck()
+    {
+        RefreshDevices();
+
+        bool sourceGone = _engine.Source is not null
+                          && Sources.All(d => d.ID != _engine.Source.ID);
+
+        if (_engine.IsCapturing && !sourceGone)
+            return; // all good
+
+        if (Sources.Count == 0)
+        {
+            EngineStatus = "No audio output device available. Connect a device.";
+            return;
+        }
+
+        Log.Write($"HealthCheck: recovery needed (capturing={_engine.IsCapturing}, sourceGone={sourceGone})");
+        TryRecover();
+    }
+
+    /// <summary>
+    /// Re-resolve a live source (the saved one if it is back, otherwise the current default) and
+    /// restart the engine on it, restoring the channels that were ON. Reports what happened.
+    /// </summary>
+    private void TryRecover()
+    {
+        if (_recovering) return;
+        _recovering = true;
+        try
+        {
+            RefreshDevices();
+
+            var source = ResolveSource();
+            if (source is null)
+            {
+                EngineStatus = "No audio output device available. Connect a device.";
+                return;
+            }
+
+            bool switched = source.ID != _selectedSource?.ID;
+            _selectedSource = source;
+            RestartEngine(source);
+
+            if (_engine.IsCapturing)
+            {
+                EngineStatus = switched
+                    ? $"Source switched to '{source.FriendlyName}'."
+                    : "";
+                OnPropertyChanged(nameof(SelectedSource));
+                OnPropertyChanged(nameof(SourceName));
+                OnPropertyChanged(nameof(MasterName));
+                OnPropertyChanged(nameof(MasterVolume));
+                OnPropertyChanged(nameof(MasterMuted));
+                OnPropertyChanged(nameof(MasterPercent));
+                Save();
+            }
+            // On a failed restart RestartEngine has already set an explanatory EngineStatus;
+            // leave it in place and let the next watchdog tick retry.
+        }
+        finally
+        {
+            _recovering = false;
+        }
+    }
+
+    /// <summary>
+    /// Sync the live device list into <see cref="Sources"/> (add/remove by id, keeping existing
+    /// instances) and re-point each channel onto its device as it appears or disappears.
+    /// </summary>
+    private void RefreshDevices()
+    {
+        List<MMDevice> current;
+        try { current = AudioDevices.GetActiveRenderDevices(); }
+        catch (Exception ex) { Log.Write($"RefreshDevices failed: {ex.Message}"); return; }
+
+        var currentIds = current.Select(d => d.ID).ToHashSet();
+
+        for (int i = Sources.Count - 1; i >= 0; i--)
+            if (!currentIds.Contains(Sources[i].ID))
+            {
+                Log.Write($"Device removed: '{Sources[i].FriendlyName}'");
+                Sources.RemoveAt(i);
+            }
+
+        var knownIds = Sources.Select(d => d.ID).ToHashSet();
+        foreach (var device in current)
+            if (knownIds.Add(device.ID))
+            {
+                Log.Write($"Device appeared: '{device.FriendlyName}'");
+                Sources.Add(device);
+            }
+
+        // Re-point channels only across a presence transition, to avoid needless churn.
+        foreach (var channel in Channels)
+        {
+            var device = current.FirstOrDefault(d => d.ID == channel.DeviceId);
+            if ((channel.Device is not null) != (device is not null))
+                channel.SetDevice(device);
+        }
     }
 
     private MMDevice? ResolveSource()
@@ -102,7 +245,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         {
             var device = Sources.FirstOrDefault(d => d.ID == def.DeviceId);
             var vm = new ChannelViewModel(_engine, def.DeviceId, device, def.Name, def.Gain,
-                () => _selectedLatency.Ms, MarkDirty)
+                () => _selectedLatency.Ms, MarkDirty, _eqPresets, def.Eq)
             {
                 IsSource = def.DeviceId == sourceId,
                 PendingActive = def.Active,
@@ -211,7 +354,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     {
         if (device is null || Channels.Any(c => c.DeviceId == device.ID)) return;
         var vm = new ChannelViewModel(_engine, device.ID, device, device.FriendlyName, 1.0,
-            () => _selectedLatency.Ms, MarkDirty)
+            () => _selectedLatency.Ms, MarkDirty, _eqPresets)
         {
             IsSource = device.ID == _selectedSource?.ID,
         };
@@ -304,12 +447,15 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         _settings.SourceDeviceId = _selectedSource?.ID;
         _settings.LatencyMs = _selectedLatency.Ms;
         _settings.Channels = Channels.Select(c => c.ToDefinition()).ToList();
+        _settings.EqPresets = _eqPresets.Persistable.ToList();
         _settings.Save();
         _dirty = false;
     }
 
     public void Dispose()
     {
+        _healthTimer?.Stop();
+        _engine.SourceLost -= OnEngineSourceLost;
         if (_dirty) Save();
         _engine.Dispose();
     }

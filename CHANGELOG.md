@@ -3,6 +3,59 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.2.9 - 2026-06-13
+
+Master mute and a per-channel graphic equalizer.
+
+### Added
+- Master strip mute: the placeholder "ON" pill is now a real toggle (green "ON"
+  while playing, red "MUTED" when engaged) bound to the source device's Windows
+  mute, so it silences the whole mirrored master at once.
+- Per-channel graphic EQ (`AudioHQ.Core/Equalizer.cs`): a bank of NAudio
+  peaking-EQ biquad filters inserted between resampling and gain in each output
+  pipeline. Selectable 3-band (100 / 1k / 8k Hz) or 6-band
+  (80 / 200 / 500 / 1.2k / 3k / 8k Hz), +/-12 dB per band. Off by default
+  (pass-through); reconfigured live and published atomically under a lock so a
+  gain change never tears a filter mid-block.
+- EQ editor window (`EqWindow`): enable toggle, 3/6-band switch and one vertical
+  fader per band, spread evenly across the graph. A green 0 dB baseline aligned
+  to the fader centres and a blue response curve drawn behind the faders that
+  deforms live as they move. Double-click a fader (or Reset) returns it to 0 dB.
+  Opened from each channel's EQ pill, which lights up blue while EQ is on.
+- EQ state (`EqSettings`: enabled, band count, per-band gains) is persisted per
+  channel in `settings.json` and reapplied on activation.
+- EQ presets (`EqPresetStore`): name and save the current curve, then load it onto
+  any channel from the editor's preset picker (Delete removes one). Presets are
+  app-wide and persisted in `settings.json`; saving an existing name overwrites it.
+  A built-in flat "Default" preset is always present and cannot be overwritten or
+  deleted.
+
+## 0.2.8 - 2026-06-11
+
+Source-loss recovery - the app no longer goes silent when the capture source
+disappears.
+
+### Fixed
+- When the source device was removed mid-session (e.g. unplugging a USB headset
+  dongle), `WasapiLoopbackCapture` died but nothing noticed: the capture handle
+  stayed non-null, so toggling an output OFF/ON just rebuilt a channel fed by the
+  dead capture (buffer stuck at `fill 0,0ms`, no audio). The engine now detects
+  this and recovers.
+
+### Added
+- `MirrorEngine`: subscribes to `RecordingStopped`, exposes `IsCapturing` and a
+  `SourceLost` event raised on an unsolicited capture stop (intentional `Stop`
+  detaches the handler first, so it is not mistaken for a loss).
+- `MixerViewModel`: handles `SourceLost` (UI-thread marshaled) and runs a 3 s
+  background watchdog (`DispatcherTimer`) that refreshes the device list and
+  recovers when capture has died or the source device left the active list.
+  Recovery re-resolves a live source (the saved one if it is back, else the
+  default render device), restarts the engine, restores the channels that were
+  ON, and reports the outcome via `EngineStatus` (`Source switched to 'X'.` on a
+  fallback, cleared on a clean same-device recovery).
+- Device hot-plug is now reflected live: the source picker and per-channel
+  online/offline state update as devices come and go.
+
 ## 0.2.7 - 2026-06-11
 
 ### Changed

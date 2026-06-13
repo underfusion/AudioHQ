@@ -2,7 +2,7 @@
 
 > Keep this file truthful to the code. Update it in the same commit as any
 > behavior change it describes (rule: CLAUDE.md "Documentation").
-> Last updated: 2026-06-11 (v0.1.10).
+> Last updated: 2026-06-11 (v0.2.8).
 
 ## Solution layout
 
@@ -41,6 +41,9 @@ BufferedWaveProvider (2 s capacity, DiscardOnBufferOverflow)
 AdaptiveResampler                          capture rate -> device mix rate,
    │                                       ratio nudged to hold backlog at target
    ▼
+EqualizerProvider                          per-channel graphic EQ (3/6 peaking
+   │                                       biquads per audio channel); off = bypass
+   ▼
 VolumeSampleProvider                       gain 0..2, mute = volume 0
    │
    ▼
@@ -66,6 +69,13 @@ Key decisions:
   `latency + 25 ms` (a stall or large glitch the controller cannot absorb), the
   buffer is cleared. With drift compensation this no longer fires in normal use.
   Logged each time it happens.
+- **Per-channel EQ (`EqualizerProvider`).** A bank of NAudio peaking-EQ biquad
+  filters (one per band per audio channel) sits between resampling and gain.
+  3-band (100 / 1k / 8k Hz) or 6-band (80 / 200 / 500 / 1.2k / 3k / 8k Hz),
+  +/-12 dB each. Disabled by default (pure pass-through). The UI reconfigures it
+  live; `Configure` rebuilds the filter bank and publishes it atomically under a
+  lock so a gain change cannot tear a filter mid-block on the audio thread. EQ
+  state is persisted per channel in `settings.json`.
 - **Push-mode fallback.** Some drivers (notably NVIDIA HDMI) reject
   event-driven shared mode; `OutputChannel` retries with `useEventSync:false`.
 - **`LoopbackMirror`** is the milestone-1 single-target version of the same
@@ -81,8 +91,33 @@ Key decisions:
 - Each `WasapiOut` runs its own render thread reading from the buffered
   provider chain.
 - ViewModels touch the engine only from the UI thread (activate/deactivate,
-  gain, mute, source/latency change). No cross-thread UI marshaling exists
-  yet because the engine raises no events back to the UI.
+  gain, mute, source/latency change).
+- `MirrorEngine.SourceLost` is the one event the engine raises back to the UI.
+  NAudio fires `WasapiCapture.RecordingStopped` on the sync-context captured at
+  `StartRecording` (the UI thread here), so it normally arrives on the UI thread,
+  but `MixerViewModel.OnEngineSourceLost` marshals through `Dispatcher` defensively
+  before touching view state.
+
+## Source-loss recovery (watchdog)
+
+The capture source can vanish mid-session (USB dongle unplugged, device disabled).
+Two mechanisms keep the app alive and self-healing:
+
+- **Event path.** `MirrorEngine` subscribes to `RecordingStopped`. An unsolicited
+  stop (the handler is detached before an intentional `Stop`) means the source
+  endpoint was invalidated: `IsCapturing` goes false and `SourceLost` fires.
+  `MixerViewModel.HandleSourceLost` shows a status and calls `TryRecover`.
+- **Watchdog path.** A `DispatcherTimer` in `MixerViewModel` (`HealthInterval`,
+  3 s) runs `RefreshDevices` (sync the live render-device list into `Sources`,
+  add/remove by id, re-point each channel across an offline/online transition) and
+  recovers if `!IsCapturing` **or** the source device id is no longer in the active
+  list - covering the case where `RecordingStopped` is slow or never arrives.
+
+`TryRecover` (re-entrancy guarded) re-resolves a live source (the saved one if it
+is back, else the current default render device), calls `RestartEngine` to rebuild
+capture and re-activate the channels that were ON, then reports the outcome in
+`EngineStatus` (`Source switched to 'X'.` when it had to fall back to a different
+device, cleared on a clean same-device recovery) and persists the new source.
 
 ## UI model (AudioHQ.App)
 
@@ -94,8 +129,9 @@ Key decisions:
     volume + mute of that device), NOT an in-app gain.
   - `LatencyPresets` (15/30/60/100 ms). Changing the preset re-opens every
     active channel so the new buffer size takes effect.
-  - `EngineStatus` - human-readable capture failure (e.g. source locked in
-    exclusive mode, `0x8889000A`).
+  - `EngineStatus` - human-readable capture state: failures (e.g. source locked
+    in exclusive mode, `0x8889000A`) and source-loss/recovery notices (see
+    "Source-loss recovery").
 - `ChannelViewModel` (one per non-source device):
   - `IsActive` toggles mirroring (creates/removes the engine `OutputChannel`);
     activation failures map COM errors to short status strings:
@@ -131,8 +167,10 @@ Key decisions:
 ## Known limitations / upgrade candidates
 
 - Mixer state (active channels, gains, latency) is NOT persisted across runs.
-- The channel list is rebuilt on source change; device hot-plug while running
-  is not handled (no `IMMNotificationClient` subscription yet).
+- Device hot-plug is handled by a 3 s `DispatcherTimer` poll (`RefreshDevices` /
+  source-loss recovery), not an `IMMNotificationClient` subscription. The poll is
+  simple and robust but reacts within one interval rather than instantly; moving
+  to the event-driven notification callback is a possible future refinement.
 - Master strip moves the source device's real Windows volume; if the source
   is also a physical output the user hears, "master" and "that device's
   slider" are inherently the same control. A separate in-app pre-mirror gain

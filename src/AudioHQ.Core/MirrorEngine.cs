@@ -16,6 +16,16 @@ public sealed class MirrorEngine : IDisposable
 
     public MMDevice? Source { get; private set; }
 
+    /// <summary>True while a capture is live (as far as the driver has told us).</summary>
+    public bool IsCapturing { get; private set; }
+
+    /// <summary>
+    /// Raised when capture stops on its own - the source device was removed, disabled or
+    /// invalidated - as opposed to an intentional <see cref="Stop"/>. The argument is the
+    /// driver exception, if any. May fire on a background thread; marshal before touching UI.
+    /// </summary>
+    public event Action<Exception?>? SourceLost;
+
     public void Start(MMDevice source)
     {
         Stop();
@@ -23,8 +33,19 @@ public sealed class MirrorEngine : IDisposable
         Log.Write($"Engine.Start: source='{source.FriendlyName}'");
         _capture = new WasapiLoopbackCapture(source);
         _capture.DataAvailable += OnDataAvailable;
+        _capture.RecordingStopped += OnRecordingStopped;
         _capture.StartRecording();
+        IsCapturing = true;
         Log.Write($"Engine.Start: capturing OK, format={_capture.WaveFormat}");
+    }
+
+    private void OnRecordingStopped(object? sender, StoppedEventArgs e)
+    {
+        // Stop() unsubscribes this handler before stopping, so reaching here always means an
+        // unsolicited stop: the source endpoint went away (unplugged/disabled/invalidated).
+        IsCapturing = false;
+        Log.Write($"Engine: capture stopped unexpectedly (source lost). error={e.Exception?.Message ?? "(none)"}");
+        SourceLost?.Invoke(e.Exception);
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
@@ -56,11 +77,15 @@ public sealed class MirrorEngine : IDisposable
     {
         if (_capture is not null)
         {
+            // Unsubscribe RecordingStopped first so the resulting stop is not mistaken for a
+            // lost source (it is an intentional teardown).
+            _capture.RecordingStopped -= OnRecordingStopped;
             _capture.DataAvailable -= OnDataAvailable;
             _capture.StopRecording();
             _capture.Dispose();
             _capture = null;
         }
+        IsCapturing = false;
 
         lock (_lock)
         {
@@ -77,6 +102,7 @@ public sealed class MirrorEngine : IDisposable
 public sealed class OutputChannel : IDisposable
 {
     private readonly BufferedWaveProvider _buffer;
+    private readonly EqualizerProvider _equalizer;
     private readonly VolumeSampleProvider _volume;
     private readonly WasapiOut _out;
     private readonly TimeSpan _maxBacklog;
@@ -117,7 +143,10 @@ public sealed class OutputChannel : IDisposable
             device.FriendlyName);
         Log.Write($"OutputChannel: adaptive resampling {captureFormat.SampleRate} -> {targetRate}, target backlog={targetBacklogMs:0}ms");
 
-        _volume = new VolumeSampleProvider(pipeline) { Volume = _gain };
+        // Graphic EQ sits between resampling and gain: it shapes the signal, then the
+        // channel gain rides on top. Starts as pure pass-through until the UI configures it.
+        _equalizer = new EqualizerProvider(pipeline);
+        _volume = new VolumeSampleProvider(_equalizer) { Volume = _gain };
 
         // Some drivers (notably NVIDIA HDMI) reject event-driven shared mode; fall back to push mode.
         try
@@ -137,6 +166,9 @@ public sealed class OutputChannel : IDisposable
         _out.Play();
         Log.Write($"OutputChannel: playing on '{device.FriendlyName}'");
     }
+
+    /// <summary>The per-channel graphic EQ; reconfigure it live via <see cref="EqualizerProvider.Configure"/>.</summary>
+    public EqualizerProvider Equalizer => _equalizer;
 
     public float Gain
     {
