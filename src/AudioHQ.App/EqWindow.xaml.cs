@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using AudioHQ.App.ViewModels;
+using AudioHQ.Core;
 
 namespace AudioHQ.App;
 
@@ -31,14 +33,15 @@ public partial class EqWindow : Window
         _eq.Bands.CollectionChanged += Bands_CollectionChanged;
         HookBands();
         CurveCanvas.SizeChanged += (_, _) => RedrawCurve();
-        if (PresetCombo.SelectedItem is null && PresetCombo.Items.Count > 0)
-            PresetCombo.SelectedIndex = 0; // the built-in Default
+        WindowPlacement.BesideOwner(this);
+        SyncPresetSelection(); // show "Default" (or Custom) for the current curve
         RedrawLater();
     }
 
     private void Bands_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         HookBands();
+        SyncPresetSelection();
         RedrawLater(); // wait for the new fader containers to lay out
     }
 
@@ -54,15 +57,64 @@ public partial class EqWindow : Window
 
     private void Band_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(EqBandViewModel.GainDb)) RedrawCurve();
+        if (e.PropertyName is nameof(EqBandViewModel.GainDb) or nameof(EqBandViewModel.Q))
+        {
+            RedrawCurve();
+            SyncPresetSelection();
+        }
+    }
+
+    // --- Preset reconciliation -------------------------------------------------
+
+    /// <summary>
+    /// Select the preset whose curve matches the live one, or - if none does - show
+    /// "Custom (not saved)". Driven by the current curve, so it survives reopening the editor.
+    /// </summary>
+    private void SyncPresetSelection()
+    {
+        if (DataContext is not ChannelViewModel channel) return;
+        var current = channel.Eq.ToSettings();
+        var match = channel.EqPresets.Presets.FirstOrDefault(p => CurveEquals(p.Eq, current));
+        PresetCombo.SelectedItem = match; // null -> the custom label shows through
+        UpdateCustomLabel();
+    }
+
+    private void PresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateCustomLabel();
+
+    private void UpdateCustomLabel()
+    {
+        if (CustomLabel is not null)
+            CustomLabel.Visibility = PresetCombo.SelectedItem is null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>True when two curves are the same shape (band count, gains and effective Q),
+    /// ignoring the on/off flag - flipping Enable should not change which preset is shown.</summary>
+    private static bool CurveEquals(EqSettings a, EqSettings b)
+    {
+        int bands = a.Bands == 6 ? 6 : 3;
+        if (bands != (b.Bands == 6 ? 6 : 3)) return false;
+        double defaultQ = EqBands.Q(bands);
+        for (int i = 0; i < bands; i++)
+        {
+            double ga = i < a.GainsDb.Length ? a.GainsDb[i] : 0.0;
+            double gb = i < b.GainsDb.Length ? b.GainsDb[i] : 0.0;
+            if (Math.Abs(ga - gb) > 0.05) return false;
+
+            double qa = a.QValues is not null && i < a.QValues.Length && a.QValues[i] > 0 ? a.QValues[i] : defaultQ;
+            double qb = b.QValues is not null && i < b.QValues.Length && b.QValues[i] > 0 ? b.QValues[i] : defaultQ;
+            if (Math.Abs(qa - qb) > 0.01) return false;
+        }
+        return true;
     }
 
     private void RedrawLater() =>
         Dispatcher.BeginInvoke(new Action(RedrawCurve), DispatcherPriority.Loaded);
 
     /// <summary>
-    /// Draw the green 0 dB baseline (aligned to the fader centres) and the blue response
-    /// curve through the current band gains, behind the faders.
+    /// Draw the green 0 dB baseline (aligned to the fader centres) and the blue response curve
+    /// behind the faders. Each band contributes a bell whose height is its gain and whose width
+    /// follows its Q (low Q = wide/round, high Q = narrow/sharp), summed across the spectrum -
+    /// so the curve deforms with both the faders and the Q knobs, like a real EQ.
     /// </summary>
     private void RedrawCurve()
     {
@@ -73,18 +125,23 @@ public partial class EqWindow : Window
         CollectSliders(BandItems, sliders);
         if (sliders.Count == 0) return;
 
-        var points = new PointCollection();
-        double baselineY = 0;
+        // Per-band peak position (x), signed pixel amplitude (up = boost) and Q.
+        var xs = new List<double>();
+        var amps = new List<double>();
+        var qs = new List<double>();
+        double baselineY = 0, sliderH = 0;
         foreach (var slider in sliders)
         {
             if (slider.DataContext is not EqBandViewModel band) continue;
             Point top = slider.TranslatePoint(new Point(slider.ActualWidth / 2, 0), CurveCanvas);
             double h = slider.ActualHeight;
-            double frac = (band.GainDb - MinDb) / (MaxDb - MinDb); // 0 (bottom) .. 1 (top)
-            points.Add(new Point(top.X, top.Y + (1 - frac) * h));
-            baselineY = top.Y + h / 2; // 0 dB sits at the fader's vertical centre
+            sliderH = h;
+            baselineY = top.Y + h / 2;                 // 0 dB sits at the fader's vertical centre
+            xs.Add(top.X);
+            amps.Add(h * (band.GainDb / (MaxDb - MinDb))); // +/-half-height at +/-full gain
+            qs.Add(band.Q);
         }
-        if (points.Count == 0) return;
+        if (xs.Count == 0) return;
 
         double w = CurveCanvas.ActualWidth;
         CurveCanvas.Children.Add(new Line
@@ -93,14 +150,28 @@ public partial class EqWindow : Window
             Stroke = (Brush)FindResource("AccentGreen"), StrokeThickness = 2,
         });
 
-        // Extend the curve flat to both edges so it spans the whole graph.
-        var curvePoints = new PointCollection { new Point(0, points[0].Y) };
-        foreach (var p in points) curvePoints.Add(p);
-        curvePoints.Add(new Point(w, points[points.Count - 1].Y));
+        // Average fader spacing sets the bell width scale; Q narrows or widens it per band.
+        double spacing = xs.Count > 1 ? (xs[xs.Count - 1] - xs[0]) / (xs.Count - 1) : w;
+        double topLimit = baselineY - sliderH / 2;
+        double bottomLimit = baselineY + sliderH / 2;
+
+        var curve = new PointCollection();
+        for (double x = 0; x <= w; x += 2)
+        {
+            double sum = 0;
+            for (int i = 0; i < xs.Count; i++)
+            {
+                double hw = spacing / qs[i];           // half-width in px: lower Q = wider bell
+                double t = (x - xs[i]) / hw;
+                sum += amps[i] / (1 + t * t);          // Lorentzian bell, summed
+            }
+            double y = Math.Clamp(baselineY - sum, topLimit, bottomLimit);
+            curve.Add(new Point(x, y));
+        }
 
         CurveCanvas.Children.Add(new Polyline
         {
-            Points = curvePoints,
+            Points = curve,
             Stroke = (Brush)FindResource("AccentBlue"),
             StrokeThickness = 2,
             StrokeLineJoin = PenLineJoin.Round,
@@ -138,6 +209,7 @@ public partial class EqWindow : Window
         if (saved is null) return;
         PresetName.Clear();
         PresetCombo.SelectedItem = saved;
+        UpdateCustomLabel();
     }
 
     private void LoadPreset_Click(object sender, RoutedEventArgs e)
@@ -154,7 +226,9 @@ public partial class EqWindow : Window
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is ChannelViewModel channel) channel.Eq.Reset();
+        if (DataContext is not ChannelViewModel channel) return;
+        channel.Eq.Reset();
+        SyncPresetSelection(); // a flat curve is the Default preset
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

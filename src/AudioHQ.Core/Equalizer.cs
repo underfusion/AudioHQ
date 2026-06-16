@@ -15,11 +15,15 @@ public sealed class EqSettings
     public int Bands { get; set; } = 3;
     public double[] GainsDb { get; set; } = new double[3];
 
+    /// <summary>Per-band Q (bell width). Null/empty means "use the band-count default".</summary>
+    public double[]? QValues { get; set; }
+
     public EqSettings Clone() => new()
     {
         Enabled = Enabled,
         Bands = Bands,
         GainsDb = (double[])GainsDb.Clone(),
+        QValues = QValues is null ? null : (double[])QValues.Clone(),
     };
 }
 
@@ -33,6 +37,11 @@ public static class EqBands
     // whole spectrum is covered; the denser 6-band uses a tighter Q.
     public const float Q3 = 0.7f;
     public const float Q6 = 1.1f;
+
+    // User-adjustable Q range for the per-band knobs: low = wide/round bell,
+    // high = narrow/sharp bell.
+    public const double QMin = 0.3;
+    public const double QMax = 4.0;
 
     public const double MaxGainDb = 12.0;
 
@@ -84,12 +93,17 @@ public sealed class EqualizerProvider : ISampleProvider
 
         int bands = eq.Bands == 6 ? 6 : 3;
         var freqs = EqBands.Frequencies(bands);
-        float q = EqBands.Q(bands);
+        float defaultQ = EqBands.Q(bands);
+        var qs = eq.QValues;
 
         var filters = new BiQuadFilter[_channels, bands];
         for (int b = 0; b < bands; b++)
         {
             float gainDb = (float)(b < eq.GainsDb.Length ? eq.GainsDb[b] : 0.0);
+            // Per-band Q if the user set one, else the band-count default. Clamp to the knob range.
+            float q = qs is not null && b < qs.Length && qs[b] > 0
+                ? (float)Math.Clamp(qs[b], EqBands.QMin, EqBands.QMax)
+                : defaultQ;
             // Centre frequency must stay below Nyquist; clamp the top band on low rates.
             float freq = Math.Min(freqs[b], _sampleRate / 2f - 1f);
             for (int c = 0; c < _channels; c++)

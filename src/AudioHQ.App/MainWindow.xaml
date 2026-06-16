@@ -87,15 +87,20 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <!-- Solid 100% reference line behind the fader. -->
-                        <Rectangle Grid.Column="1" Width="30" Height="2" Fill="{StaticResource AccentGreen}"
-                                   VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,15,0,0"
+                        <!-- Master has its own range: 100% is the maximum and sits at the top with
+                             the green line, so the thumb overhangs slightly above it at full scale
+                             (like the channel thumbs do at their max). The green line and the "100"
+                             label are pinned to the value=1.0 thumb centre in code-behind
+                             (PositionMasterUnityLine). -->
+                        <Rectangle x:Name="MasterUnityLine" Grid.Column="1" Width="30" Height="2"
+                                   Fill="{StaticResource AccentGreen}"
+                                   VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,20,0,0"
                                    IsHitTestVisible="False" />
-                        <Slider Grid.Column="1" Style="{StaticResource Fader}" Minimum="0" Maximum="1"
+                        <Slider x:Name="MasterFader" Grid.Column="1" Style="{StaticResource Fader}" Minimum="0" Maximum="1"
                                 Ticks="0.25,0.5,0.75" Value="{Binding MasterVolume, Mode=TwoWay}"
                                 PreviewMouseLeftButtonDown="Fader_PreviewMouseLeftButtonDown" />
                         <Canvas Grid.Column="2" Width="24" Height="170" Margin="2,10,0,4">
-                            <TextBlock Style="{StaticResource ScaleLabel}" Text="100" Canvas.Top="0" />
+                            <TextBlock x:Name="MasterTopLabel" Style="{StaticResource ScaleLabel}" Text="100" Canvas.Top="6" />
                             <TextBlock Style="{StaticResource ScaleLabel}" Text="50" Canvas.Top="79" />
                         </Canvas>
                     </Grid>
@@ -152,7 +157,8 @@
                                              KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus"
                                              IsVisibleChanged="RenameBox_IsVisibleChanged" />
                                 </Grid>
-                                <!-- Controls zone: ON/OFF toggle + EQ placeholder. -->
+                                <!-- Controls zone: ON/OFF toggle, then the EQ toggle with a gear
+                                     at the right edge that opens the EQ editor. -->
                                 <StackPanel Style="{StaticResource ControlsZone}">
                                     <ToggleButton Tag="{StaticResource AccentGreen}"
                                                   IsChecked="{Binding IsActive}">
@@ -167,8 +173,16 @@
                                             </Style>
                                         </ToggleButton.Style>
                                     </ToggleButton>
-                                    <Button Style="{StaticResource EqPillButton}"
-                                            ToolTip="Equalizer" Click="ChannelEq_Click" />
+                                    <!-- One pill: clicking the body toggles EQ; the gear sits
+                                         inside at the right edge and opens the editor. -->
+                                    <Grid Margin="0,3,0,0">
+                                        <ToggleButton Style="{StaticResource EqPillToggle}"
+                                                      IsChecked="{Binding EqEnabled, Mode=TwoWay}"
+                                                      ToolTip="Toggle EQ on/off" />
+                                        <!-- Sliders glyph (distinct from the options gear); opens the EQ editor. -->
+                                        <Button Style="{StaticResource PillGearButton}" HorizontalAlignment="Right"
+                                                Width="26" Height="26" Margin="0,0,2,0" Click="ChannelEq_Click" />
+                                    </Grid>
                                 </StackPanel>
                                 <!-- Fader zone: double-click anywhere here resets gain to 100%. -->
                                 <StackPanel PreviewMouseLeftButtonDown="FaderZone_PreviewMouseLeftButtonDown">

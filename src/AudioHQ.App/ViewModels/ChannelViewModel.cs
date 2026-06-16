@@ -62,8 +62,15 @@ public sealed class ChannelViewModel : ViewModelBase
         _onChanged();
     }
 
-    /// <summary>True when the EQ is switched on (drives the EQ pill highlight).</summary>
-    public bool EqEnabled => _eq.Enabled;
+    /// <summary>
+    /// EQ on/off. Drives the channel's EQ pill (click toggles it); setting it routes through
+    /// the EQ model, which applies the curve live and raises this back via <see cref="ApplyEq"/>.
+    /// </summary>
+    public bool EqEnabled
+    {
+        get => _eq.Enabled;
+        set => _eq.Enabled = value;
+    }
 
     /// <summary>True only when the channel can actually mirror (device present and not the source).</summary>
     public bool IsAvailable => Device is not null && !_isSource;
