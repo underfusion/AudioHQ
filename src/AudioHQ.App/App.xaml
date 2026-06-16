@@ -89,24 +89,173 @@
             <Setter Property="Cursor" Value="Hand" />
         </Style>
 
-        <!-- EQ pill: a button (click opens the editor) that lights up blue while the EQ is on. -->
-        <Style x:Key="EqPillButton" TargetType="Button">
-            <Setter Property="Margin" Value="0,3,0,0" />
+        <!-- EQ pill: a toggle (click switches the EQ on/off) that lights up blue while it is on. -->
+        <ControlTemplate x:Key="EqPillToggleTemplate" TargetType="ToggleButton">
+            <Border x:Name="Pill" Background="{StaticResource ButtonBrush}" CornerRadius="7" Height="26">
+                <TextBlock x:Name="Txt" Text="EQ" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="11" FontWeight="Bold" Foreground="{StaticResource DimTextBrush}" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource AccentBlue}" />
+                    <Setter TargetName="Txt" Property="Foreground" Value="White" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.85" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.4" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="EqPillToggle" TargetType="ToggleButton">
+            <Setter Property="Template" Value="{StaticResource EqPillToggleTemplate}" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- Sliders glyph that lives inside the EQ pill (transparent so the pill shows through).
+             No tooltip; the icon just recolours on hover to signal it is clickable. -->
+        <Style x:Key="PillGearButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent">
+                            <Viewbox Width="14" Height="14">
+                                <Path x:Name="Glyph" Fill="{StaticResource TextBrush}"
+                                      Data="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" />
+                            </Viewbox>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Glyph" Property="Fill" Value="{StaticResource AccentBlue}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark form controls for dialogs (buttons, combo, text box) - match the app shell
+             instead of the default white Windows chrome. -->
+        <Style x:Key="DarkButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Background" Value="{StaticResource ButtonBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Pill" Background="{StaticResource ButtonBrush}" CornerRadius="7" Height="26">
-                            <TextBlock x:Name="Txt" Text="EQ" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontSize="11" FontWeight="Bold" Foreground="{StaticResource DimTextBrush}" />
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="6"
+                                BorderBrush="{StaticResource MasterBorderBrush}" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <DataTrigger Binding="{Binding EqEnabled}" Value="True">
-                                <Setter TargetName="Pill" Property="Background" Value="{StaticResource AccentBlue}" />
-                                <Setter TargetName="Txt" Property="Foreground" Value="White" />
-                            </DataTrigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Pill" Property="Opacity" Value="0.85" />
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource MasterCardBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Accent (primary) variant of DarkButton - filled blue, for the main action. -->
+        <Style x:Key="DarkButtonAccent" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="{StaticResource AccentBlue}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style x:Key="DarkTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource BgBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource MasterBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <SolidColorBrush x:Key="ComboPopupBrush" Color="#FF2A3040" />
+
+        <Style x:Key="DarkComboItem" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBlue}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkCombo" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource DarkComboItem}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="Toggle" Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd" Background="{StaticResource ButtonBrush}" CornerRadius="6"
+                                                BorderBrush="{StaticResource MasterBorderBrush}" BorderThickness="1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="22" />
+                                                </Grid.ColumnDefinitions>
+                                                <Path Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Data="M 0 0 L 8 0 L 4 5 Z" Fill="{StaticResource DimTextBrush}" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource MasterCardBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Margin="10,0,26,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+                            <Popup x:Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                <Border Background="{StaticResource ComboPopupBrush}" CornerRadius="6"
+                                        BorderBrush="{StaticResource MasterBorderBrush}" BorderThickness="1"
+                                        MinWidth="{Binding ActualWidth, ElementName=Toggle}" Margin="0,2,0,0">
+                                    <ScrollViewer MaxHeight="220">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -118,6 +267,8 @@
             <Setter Property="Orientation" Value="Vertical" />
             <Setter Property="Height" Value="170" />
             <Setter Property="Width" Value="30" />
+            <!-- No dotted keyboard-focus rectangle around the track. -->
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="Margin" Value="0,10,0,4" />
             <!-- Threshold ticks; per-slider Ticks set where the strip is declared. -->

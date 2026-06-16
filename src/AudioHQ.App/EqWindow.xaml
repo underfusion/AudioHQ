@@ -1,10 +1,11 @@
 <Window x:Class="AudioHQ.App.EqWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AudioHQ.App"
         Title="AudioHQ - Equalizer"
         Background="{StaticResource BgBrush}"
         SizeToContent="WidthAndHeight"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
     <StackPanel Margin="20" MinWidth="300">
@@ -30,8 +31,10 @@
              aligned to the fader centres, and a response curve drawn behind them. The
              baseline and curve are rendered in code-behind (see RedrawCurve). -->
         <Border Margin="0,14,0,0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="14,12">
-            <Grid x:Name="GraphArea" Width="360" Height="196">
-                <Canvas x:Name="CurveCanvas" ClipToBounds="True" IsHitTestVisible="False" />
+            <Grid x:Name="GraphArea" Width="360" Height="248">
+                <!-- Curve canvas only spans the fader region; the knobs sit below it. -->
+                <Canvas x:Name="CurveCanvas" ClipToBounds="True" IsHitTestVisible="False"
+                        VerticalAlignment="Top" Height="186" />
                 <ItemsControl x:Name="BandItems" ItemsSource="{Binding Eq.Bands}" Background="Transparent">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -54,6 +57,16 @@
                                 <TextBlock Text="{Binding Label}" TextAlignment="Center"
                                            Foreground="{StaticResource TextBrush}" FontSize="10"
                                            FontWeight="SemiBold" Margin="0,4,0,0" />
+                                <!-- Per-band bell width (Q): drag to set how rounded/sharp the
+                                     peak is, double-click resets it. -->
+                                <local:Knob Width="34" Height="34" Margin="0,6,0,0"
+                                            HorizontalAlignment="Center"
+                                            Minimum="0.3" Maximum="4.0"
+                                            Value="{Binding Q, Mode=TwoWay}" Default="{Binding DefaultQ}"
+                                            ToolTip="Bandwidth (Q) - drag up for a narrower, sharper bell; down for a wider, rounder one. Double-click to reset." />
+                                <TextBlock Text="Q" TextAlignment="Center"
+                                           Foreground="{StaticResource DimTextBrush}" FontSize="9"
+                                           Margin="0,2,0,0" />
                             </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -64,25 +77,39 @@
         <!-- Presets: pick + Load/Delete on top, name + Save below. Shared across channels. -->
         <TextBlock Text="presets" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,16,0,4" />
         <DockPanel>
-            <Button DockPanel.Dock="Right" Content="Delete" Click="DeletePreset_Click"
-                    Width="64" Height="26" Margin="6,0,0,0" Cursor="Hand" />
-            <Button DockPanel.Dock="Right" Content="Load" Click="LoadPreset_Click"
-                    Width="64" Height="26" Margin="6,0,0,0" Cursor="Hand" />
-            <ComboBox x:Name="PresetCombo" Height="26"
-                      ItemsSource="{Binding EqPresets.Presets}" DisplayMemberPath="Name" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Delete"
+                    Click="DeletePreset_Click" Width="64" Height="26" Margin="6,0,0,0" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Load"
+                    Click="LoadPreset_Click" Width="64" Height="26" Margin="6,0,0,0" />
+            <Grid>
+                <ComboBox x:Name="PresetCombo" Style="{StaticResource DarkCombo}" Height="26"
+                          ItemsSource="{Binding EqPresets.Presets}"
+                          SelectionChanged="PresetCombo_SelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <!-- Shown when the live curve matches no saved preset (e.g. after tweaking faders). -->
+                <TextBlock x:Name="CustomLabel" Text="Custom (not saved)" Margin="10,0,26,0"
+                           VerticalAlignment="Center" IsHitTestVisible="False"
+                           Foreground="{StaticResource DimTextBrush}" FontStyle="Italic" FontSize="12"
+                           Visibility="Collapsed" />
+            </Grid>
         </DockPanel>
         <DockPanel Margin="0,6,0,0">
-            <Button DockPanel.Dock="Right" Content="Save preset" Click="SavePreset_Click"
-                    Width="134" Height="26" Margin="6,0,0,0" Cursor="Hand" />
-            <TextBox x:Name="PresetName" Height="26" VerticalContentAlignment="Center"
-                     Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
-                     CaretBrush="{StaticResource TextBrush}" BorderBrush="{StaticResource ButtonBrush}"
+            <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Save preset"
+                    Click="SavePreset_Click" Width="134" Height="26" Margin="6,0,0,0" />
+            <TextBox x:Name="PresetName" Style="{StaticResource DarkTextBox}" Height="26"
                      ToolTip="New preset name (existing name overwrites)" />
         </DockPanel>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="Reset" Click="Reset_Click" Width="80" Height="28" Margin="0,0,8,0" Cursor="Hand" />
-            <Button Content="Close" Click="Close_Click" Width="80" Height="28" Cursor="Hand" />
+            <Button Content="Reset" Style="{StaticResource DarkButton}" Click="Reset_Click"
+                    Width="80" Height="28" Margin="0,0,8,0" />
+            <Button Content="Close" Style="{StaticResource DarkButtonAccent}" Click="Close_Click"
+                    Width="80" Height="28" />
         </StackPanel>
     </StackPanel>
 </Window>

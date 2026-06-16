@@ -72,10 +72,15 @@ Key decisions:
 - **Per-channel EQ (`EqualizerProvider`).** A bank of NAudio peaking-EQ biquad
   filters (one per band per audio channel) sits between resampling and gain.
   3-band (100 / 1k / 8k Hz) or 6-band (80 / 200 / 500 / 1.2k / 3k / 8k Hz),
-  +/-12 dB each. Disabled by default (pure pass-through). The UI reconfigures it
-  live; `Configure` rebuilds the filter bank and publishes it atomically under a
-  lock so a gain change cannot tear a filter mid-block on the audio thread. EQ
-  state is persisted per channel in `settings.json`.
+  +/-12 dB each. Each band also has a per-band Q (bell width, clamped to
+  `EqBands.QMin..QMax`); `EqSettings.QValues` carries it, falling back to the
+  band-count default (`Q3`/`Q6`) when unset. Disabled by default (pure
+  pass-through). The UI reconfigures it live; `Configure` rebuilds the filter
+  bank and publishes it atomically under a lock so a gain change cannot tear a
+  filter mid-block on the audio thread. EQ state (enable, band count, gains, Q)
+  is persisted per channel in `settings.json`. The editor draws the response
+  curve as a sum of per-band bells whose width follows Q, so it tracks both the
+  gain faders and the Q knobs.
 - **Push-mode fallback.** Some drivers (notably NVIDIA HDMI) reject
   event-driven shared mode; `OutputChannel` retries with `useEventSync:false`.
 - **`LoopbackMirror`** is the milestone-1 single-target version of the same
@@ -113,11 +118,23 @@ Two mechanisms keep the app alive and self-healing:
   recovers if `!IsCapturing` **or** the source device id is no longer in the active
   list - covering the case where `RecordingStopped` is slow or never arrives.
 
-`TryRecover` (re-entrancy guarded) re-resolves a live source (the saved one if it
-is back, else the current default render device), calls `RestartEngine` to rebuild
-capture and re-activate the channels that were ON, then reports the outcome in
-`EngineStatus` (`Source switched to 'X'.` when it had to fall back to a different
-device, cleared on a clean same-device recovery) and persists the new source.
+`TryRecover` (re-entrancy guarded) re-resolves a live source (the preferred one if
+it is back, else the current default render device), calls `RestartEngine` to
+rebuild capture and re-activate the channels that were ON, then reports the outcome
+in `EngineStatus` (`Source switched to 'X'.` when it had to fall back to a
+different device, cleared on a clean same-device recovery) and persists the choice.
+
+**Preferred vs. active source.** `_preferredSourceId` is the source the user
+actually chose (persisted as `SourceDeviceId`); `_selectedSource` is whatever is
+live, which may be a fallback when the preferred device is not ready yet - the
+common case being Bluetooth earbuds still connecting just after a PC restart.
+Only an explicit pick (the `SelectedSource` setter) changes the preference, and
+`Save` writes `_preferredSourceId`, never a fallback, so a temporary fallback can
+never overwrite the real preference. When the watchdog finds capture healthy but
+running on a fallback, `TrySwitchToPreferred` switches back to the preferred device
+as soon as it reappears (status `Source restored to 'X'.`). A device that refuses
+to start is recorded in `_unstartableSources` and not retried until it disconnects
+and reconnects, so the app never spins on, e.g., a device locked in exclusive mode.
 
 ## UI model (AudioHQ.App)
 

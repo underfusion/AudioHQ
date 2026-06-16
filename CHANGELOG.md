@@ -3,6 +3,89 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.3.4 - 2026-06-16
+
+### Fixed
+- The chosen source now survives a PC restart. When AudioHQ starts before the
+  preferred output has finished connecting (e.g. Bluetooth earbuds right after
+  boot), it falls back to a working device as before, but the watchdog now
+  switches back to the chosen source as soon as it reappears.
+- A temporary fallback source is no longer written to settings.json, so it can
+  never quietly overwrite the user's real source preference. Only an explicit
+  source pick changes the saved choice. A source that refuses to start is
+  remembered and not retried until it disconnects and reconnects.
+
+## 0.3.3 - 2026-06-14
+
+### Changed
+- The master fader keeps its own 0-100% range (100% is the maximum), but the
+  green 100% line and the "100" label are now pinned to the thumb centre at full
+  scale, so at 100% the thumb sits on the line and overhangs slightly above it
+  (like the channel thumbs at their max) instead of the line floating above the
+  handle.
+- The EQ sliders glyph no longer shows a tooltip bubble on hover; it recolours
+  (to the accent blue) instead to signal it is clickable.
+- Faders no longer draw the dotted keyboard-focus rectangle.
+
+## 0.3.2 - 2026-06-13
+
+### Changed
+- The EQ pill's settings glyph is now a sliders/"tune" icon, distinct from the
+  app's options gear (the editor it opens is the EQ, not general settings).
+
+### Fixed
+- The master strip's green line is now centred on the fader thumb and tracks it
+  as the volume moves (it is wider than the thumb, so it peeks out either side),
+  instead of sitting above the handle.
+
+## 0.3.1 - 2026-06-13
+
+Follow-up polish to the EQ/options dialogs and the master strip.
+
+### Changed
+- The Options dialog now docks beside the app (right, or left if there is no
+  room) like the EQ editor, and its source/latency pickers and Close button use
+  the dark theme instead of white Windows chrome.
+- The EQ settings gear now lives inside the EQ pill at its right edge (clicking
+  the pill body toggles EQ; the gear opens the editor) instead of as a separate
+  button beside it.
+- The EQ preset picker now reflects the live curve: it shows "Default" when the
+  curve is flat and "Custom (not saved)" once any fader or Q knob is moved away
+  from a saved preset. The state is derived from the curve, so it survives
+  closing and reopening the editor.
+
+### Fixed
+- The master strip's green "100%" line is now placed from the fader's rendered
+  thumb position (extrapolated to full scale), so it sits on the thumb at 100%
+  instead of floating above it.
+
+## 0.3.0 - 2026-06-13
+
+EQ refinements: per-band bandwidth control, in-app theming and a docked editor.
+
+### Added
+- Per-band Q (`EqSettings.QValues`): a rotary knob under each fader (new `Knob`
+  control) sets how rounded or sharp that band's bell is. Drag up for a narrower,
+  sharper peak, down for a wider, rounder one; double-click resets to the
+  band-count default. Q is persisted with the channel and presets.
+- The EQ response curve is now drawn from gain and Q together (a summed bell per
+  band) instead of straight segments, so it reflects the bandwidth knobs.
+
+### Changed
+- The channel EQ pill is now a toggle: clicking it switches the EQ on/off. A new
+  gear icon at the strip's right edge opens the EQ editor.
+- The EQ editor opens docked just off the app's right edge (or left, if there is
+  no room) instead of stacked on top; it remains a normal, movable window.
+- EQ editor buttons, the preset picker and the name box now use the app's dark
+  theme instead of default white Windows chrome.
+- The EQ preset picker selects the built-in "Default" when the curve is flat or
+  has just been reset, instead of showing a blank selection.
+
+### Fixed
+- The master strip's green "100%" reference line now sits on the fader's thumb
+  centre at full scale (computed from the slider geometry) instead of floating
+  above it.
+
 ## 0.2.9 - 2026-06-13
 
 Master mute and a per-channel graphic equalizer.

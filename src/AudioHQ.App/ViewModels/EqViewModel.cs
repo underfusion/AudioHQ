@@ -23,7 +23,7 @@ public sealed class EqViewModel : ViewModelBase
         _onChanged = onChanged;
         _enabled = settings?.Enabled ?? false;
         _bandCount = settings?.Bands == 6 ? 6 : 3;
-        BuildBands(settings?.GainsDb);
+        BuildBands(settings?.GainsDb, settings?.QValues);
     }
 
     public bool Enabled
@@ -41,7 +41,7 @@ public sealed class EqViewModel : ViewModelBase
             int b = value == 6 ? 6 : 3;
             if (_bandCount == b) return;
             _bandCount = b;
-            BuildBands(null);
+            BuildBands(null, null);
             OnPropertyChanged();
             OnPropertyChanged(nameof(Is3Band));
             OnPropertyChanged(nameof(Is6Band));
@@ -53,24 +53,26 @@ public sealed class EqViewModel : ViewModelBase
     public bool Is3Band { get => _bandCount == 3; set { if (value) BandCount = 3; } }
     public bool Is6Band { get => _bandCount == 6; set { if (value) BandCount = 6; } }
 
-    private void BuildBands(double[]? gains)
+    private void BuildBands(double[]? gains, double[]? qs)
     {
         Bands.Clear();
         var freqs = EqBands.Frequencies(_bandCount);
+        double defaultQ = EqBands.Q(_bandCount);
         for (int i = 0; i < freqs.Length; i++)
         {
             double g = gains is not null && i < gains.Length ? gains[i] : 0.0;
-            Bands.Add(new EqBandViewModel(freqs[i], g, _onChanged));
+            double q = qs is not null && i < qs.Length && qs[i] > 0 ? qs[i] : defaultQ;
+            Bands.Add(new EqBandViewModel(freqs[i], g, q, defaultQ, _onChanged));
         }
     }
 
-    /// <summary>Replace the whole curve from a saved preset (band count, gains and enable).</summary>
+    /// <summary>Replace the whole curve from a saved preset (band count, gains, Q and enable).</summary>
     public void Load(EqSettings settings)
     {
         if (settings is null) return;
         _bandCount = settings.Bands == 6 ? 6 : 3;
         _enabled = settings.Enabled;
-        BuildBands(settings.GainsDb);
+        BuildBands(settings.GainsDb, settings.QValues);
         OnPropertyChanged(nameof(Enabled));
         OnPropertyChanged(nameof(BandCount));
         OnPropertyChanged(nameof(Is3Band));
@@ -78,10 +80,14 @@ public sealed class EqViewModel : ViewModelBase
         _onChanged();
     }
 
-    /// <summary>Flatten every band to 0 dB (single change notification).</summary>
+    /// <summary>Flatten every band to 0 dB and the default Q (single change notification).</summary>
     public void Reset()
     {
-        foreach (var band in Bands) band.SetGainSilently(0.0);
+        foreach (var band in Bands)
+        {
+            band.SetGainSilently(0.0);
+            band.SetQSilently(band.DefaultQ);
+        }
         _onChanged();
     }
 
@@ -90,5 +96,6 @@ public sealed class EqViewModel : ViewModelBase
         Enabled = _enabled,
         Bands = _bandCount,
         GainsDb = Bands.Select(b => b.GainDb).ToArray(),
+        QValues = Bands.Select(b => b.Q).ToArray(),
     };
 }

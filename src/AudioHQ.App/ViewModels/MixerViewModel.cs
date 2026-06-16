@@ -35,6 +35,16 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private bool _isEditingMaster;
     private bool _recovering;
 
+    // The source the USER chose (persisted as SourceDeviceId). Distinct from _selectedSource,
+    // which is whatever is actually live and may be a fallback when the chosen device is not
+    // ready yet (e.g. Bluetooth earbuds still connecting right after a PC restart). Only an
+    // explicit pick changes this; a fallback never overwrites it, so the preference survives.
+    private string? _preferredSourceId;
+
+    // Device ids that would not start as a source (e.g. locked in exclusive mode). Skipped by the
+    // switch-back watchdog until they disappear and reappear, so we never spin retrying a bad one.
+    private readonly HashSet<string> _unstartableSources = new();
+
     /// <summary>How often the background watchdog re-checks devices and engine health.</summary>
     private static readonly TimeSpan HealthInterval = TimeSpan.FromSeconds(3);
 
@@ -63,6 +73,8 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
         _selectedLatency = LatencyPresets.FirstOrDefault(p => p.Ms == _settings.LatencyMs)
                            ?? LatencyPresets[1];
+
+        _preferredSourceId = _settings.SourceDeviceId;
 
         var source = ResolveSource();
         _selectedSource = source;
@@ -123,7 +135,12 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
                           && Sources.All(d => d.ID != _engine.Source.ID);
 
         if (_engine.IsCapturing && !sourceGone)
-            return; // all good
+        {
+            // Healthy. If we are only on a fallback because the chosen source was not ready
+            // earlier, switch back to it now that it has reappeared.
+            TrySwitchToPreferred();
+            return;
+        }
 
         if (Sources.Count == 0)
         {
@@ -163,12 +180,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
                 EngineStatus = switched
                     ? $"Source switched to '{source.FriendlyName}'."
                     : "";
-                OnPropertyChanged(nameof(SelectedSource));
-                OnPropertyChanged(nameof(SourceName));
-                OnPropertyChanged(nameof(MasterName));
-                OnPropertyChanged(nameof(MasterVolume));
-                OnPropertyChanged(nameof(MasterMuted));
-                OnPropertyChanged(nameof(MasterPercent));
+                NotifySourceChanged();
                 Save();
             }
             // On a failed restart RestartEngine has already set an explanatory EngineStatus;
@@ -178,6 +190,53 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         {
             _recovering = false;
         }
+    }
+
+    /// <summary>
+    /// Capture is healthy but running on a fallback device. If the user's chosen source has come
+    /// back (e.g. Bluetooth earbuds finished connecting after boot), switch onto it. If it will
+    /// not start, restore the working fallback and remember not to keep retrying it.
+    /// </summary>
+    private void TrySwitchToPreferred()
+    {
+        if (_preferredSourceId is null || _preferredSourceId == _engine.Source?.ID) return;
+        if (_unstartableSources.Contains(_preferredSourceId)) return;
+
+        var preferred = Sources.FirstOrDefault(d => d.ID == _preferredSourceId);
+        if (preferred is null) return;
+
+        var fallback = _selectedSource;
+        Log.Write($"HealthCheck: preferred source '{preferred.FriendlyName}' is back, switching from fallback '{fallback?.FriendlyName ?? "(none)"}'");
+        _selectedSource = preferred;
+        RestartEngine(preferred);
+
+        if (_engine.IsCapturing)
+        {
+            EngineStatus = $"Source restored to '{preferred.FriendlyName}'.";
+            NotifySourceChanged();
+            return;
+        }
+
+        // Preferred device refused to start - keep audio alive on the fallback and stop retrying
+        // it until it disconnects and reconnects.
+        _unstartableSources.Add(preferred.ID);
+        Log.Write($"Preferred source '{preferred.FriendlyName}' would not start; staying on fallback");
+        if (fallback is not null)
+        {
+            _selectedSource = fallback;
+            RestartEngine(fallback);
+        }
+        NotifySourceChanged();
+    }
+
+    private void NotifySourceChanged()
+    {
+        OnPropertyChanged(nameof(SelectedSource));
+        OnPropertyChanged(nameof(SourceName));
+        OnPropertyChanged(nameof(MasterName));
+        OnPropertyChanged(nameof(MasterVolume));
+        OnPropertyChanged(nameof(MasterMuted));
+        OnPropertyChanged(nameof(MasterPercent));
     }
 
     /// <summary>
@@ -196,6 +255,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
             if (!currentIds.Contains(Sources[i].ID))
             {
                 Log.Write($"Device removed: '{Sources[i].FriendlyName}'");
+                _unstartableSources.Remove(Sources[i].ID);
                 Sources.RemoveAt(i);
             }
 
@@ -218,9 +278,9 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
     private MMDevice? ResolveSource()
     {
-        if (_settings.SourceDeviceId is not null)
+        if (_preferredSourceId is not null)
         {
-            var saved = Sources.FirstOrDefault(d => d.ID == _settings.SourceDeviceId);
+            var saved = Sources.FirstOrDefault(d => d.ID == _preferredSourceId);
             if (saved is not null) return saved;
         }
 
@@ -281,14 +341,12 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         {
             if (value is null || value == _selectedSource) return;
             _selectedSource = value;
+            // An explicit pick becomes the remembered preference.
+            _preferredSourceId = value.ID;
+            _unstartableSources.Remove(value.ID);
             RestartEngine(value);
             Save();
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(SourceName));
-            OnPropertyChanged(nameof(MasterName));
-            OnPropertyChanged(nameof(MasterVolume));
-            OnPropertyChanged(nameof(MasterMuted));
-            OnPropertyChanged(nameof(MasterPercent));
+            NotifySourceChanged();
         }
     }
 
@@ -444,7 +502,8 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private void Save()
     {
         if (!_loaded) return;
-        _settings.SourceDeviceId = _selectedSource?.ID;
+        // Persist the user's chosen source, never a temporary fallback.
+        _settings.SourceDeviceId = _preferredSourceId;
         _settings.LatencyMs = _selectedLatency.Ms;
         _settings.Channels = Channels.Select(c => c.ToDefinition()).ToList();
         _settings.EqPresets = _eqPresets.Persistable.ToList();
