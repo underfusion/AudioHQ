@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using AudioHQ.App.ViewModels;
 using AudioHQ.Core;
@@ -34,6 +35,12 @@ public partial class MainWindow : Window
             foreach (var channel in _viewModel.Channels)
                 channel.PropertyChanged += Channel_PropertyChanged;
             RefreshTrayTooltip();
+
+            // Pin the master's green line and "100" label to the thumb centre at full scale, once
+            // the slider template has been realised (and on any resize).
+            Loaded += (_, _) => Dispatcher.BeginInvoke(
+                new Action(PositionMasterUnityLine), System.Windows.Threading.DispatcherPriority.Loaded);
+            MasterFader.SizeChanged += (_, _) => PositionMasterUnityLine();
         }
         catch (Exception ex)
         {
@@ -70,9 +77,38 @@ public partial class MainWindow : Window
         _tray.SetTooltip($"AudioHQ\nON: {Join(on)}\nOFF: {Join(off)}");
     }
 
+    // The master tops out at 100%, so 100% is the top of the track. Pin the green unity line (and
+    // the "100" label beside it) to the thumb centre at full scale, derived from the thumb's
+    // rendered position, so the thumb rests on the line at 100% and overhangs slightly above it.
+    private void PositionMasterUnityLine()
+    {
+        MasterFader.ApplyTemplate();
+        MasterFader.UpdateLayout();
+        if (MasterFader.Template?.FindName("PART_Track", MasterFader) is not Track track) return;
+        if (track.Thumb is not { ActualHeight: > 0 } thumb || MasterUnityLine.Parent is not UIElement parent) return;
+
+        double range = MasterFader.Maximum - MasterFader.Minimum;
+        if (range <= 0) return;
+
+        Point thumbCentre = thumb.TranslatePoint(new Point(thumb.ActualWidth / 2, thumb.ActualHeight / 2), parent);
+        double travel = Math.Max(0, track.ActualHeight - thumb.ActualHeight);
+        double unityY = thumbCentre.Y - (MasterFader.Maximum - MasterFader.Value) / range * travel;
+
+        MasterUnityLine.Margin = new Thickness(0, unityY - MasterUnityLine.Height / 2, 0, 0);
+        // The label canvas sits 10px below the grid top; centre the "100" text on the line.
+        Canvas.SetTop(MasterTopLabel, unityY - 10 - MasterTopLabel.ActualHeight / 2);
+    }
+
     private void Options_Click(object sender, RoutedEventArgs e)
     {
         new OptionsWindow { Owner = this, DataContext = _viewModel }.ShowDialog();
+    }
+
+    // Open the graphic-EQ editor for the channel whose EQ pill was clicked.
+    private void ChannelEq_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is ChannelViewModel channel)
+            new EqWindow { Owner = this, DataContext = channel }.ShowDialog();
     }
 
     // Double-click the master fader to snap it back to 100% (unity).

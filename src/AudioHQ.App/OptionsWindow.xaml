@@ -4,7 +4,7 @@
         Title="AudioHQ - Options"
         Background="{StaticResource BgBrush}"
         SizeToContent="WidthAndHeight"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
     <StackPanel Margin="20" MinWidth="300">
@@ -12,12 +12,17 @@
                    FontSize="15" FontWeight="Bold" Margin="0,0,0,14" />
 
         <TextBlock Text="source" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,0,0,4" />
-        <ComboBox ItemsSource="{Binding Sources}"
-                  SelectedItem="{Binding SelectedSource}"
-                  DisplayMemberPath="FriendlyName" />
+        <ComboBox Style="{StaticResource DarkCombo}" Height="28" ItemsSource="{Binding Sources}"
+                  SelectedItem="{Binding SelectedSource}">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding FriendlyName}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
 
         <TextBlock Text="latency" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,14,0,4" />
-        <ComboBox ItemsSource="{Binding LatencyPresets}"
+        <ComboBox Style="{StaticResource DarkCombo}" Height="28" ItemsSource="{Binding LatencyPresets}"
                   SelectedItem="{Binding SelectedLatency}" />
 
         <TextBlock Text="tray &amp; startup" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,18,0,6" />
@@ -28,7 +33,7 @@
         <CheckBox Content="Run with Windows" Foreground="{StaticResource TextBrush}"
                   IsChecked="{Binding RunWithWindows}" Cursor="Hand" />
 
-        <Button Content="Close" Click="Close_Click" Width="80" Height="28"
-                HorizontalAlignment="Right" Margin="0,20,0,0" Cursor="Hand" />
+        <Button Content="Close" Style="{StaticResource DarkButtonAccent}" Click="Close_Click"
+                Width="80" Height="28" HorizontalAlignment="Right" Margin="0,20,0,0" />
     </StackPanel>
 </Window>
