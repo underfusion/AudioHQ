@@ -28,18 +28,40 @@
                     </Viewbox>
                 </Button>
             </Grid>
-            <TextBlock Text="{Binding EngineStatus}" Foreground="{StaticResource AccentRed}"
-                       FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
+            <!-- Status notification: a self-dismissing toast (X to close). Blue frame for
+                 informational notices (source switched/restored), red for failures. -->
+            <Border CornerRadius="8" Padding="10,7" Margin="0,8,0,0" BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{StaticResource InfoBubbleBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource AccentBlue}" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding EngineStatus}" Value="">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding EngineStatusIsError}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource ErrorBubbleBrush}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentRed}" />
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- Accent dot, coloured to match the frame (info/error). -->
+                    <Ellipse Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,9,0"
+                             Fill="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=Border}}" />
+                    <TextBlock Grid.Column="1" Text="{Binding EngineStatus}" Foreground="{StaticResource TextBrush}"
+                               FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Style="{StaticResource IconButton}" Content="&#x2715;"
+                            Width="18" Height="18" Margin="9,0,0,0" VerticalAlignment="Top"
+                            ToolTip="Dismiss" Command="{Binding DismissStatusCommand}" />
+                </Grid>
+            </Border>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal">

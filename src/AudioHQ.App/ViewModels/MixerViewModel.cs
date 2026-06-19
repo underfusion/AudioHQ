@@ -29,6 +29,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private readonly DispatcherTimer _healthTimer;
     private MMDevice? _selectedSource;
     private string _engineStatus = "";
+    private bool _engineStatusIsError;
     private LatencyPreset _selectedLatency;
     private bool _loaded;
     private bool _dirty;
@@ -53,6 +54,9 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
     public ICommand RemoveChannelCommand { get; }
 
+    /// <summary>Closes the status notification bubble (the "X" on it).</summary>
+    public ICommand DismissStatusCommand { get; }
+
     public LatencyPreset[] LatencyPresets { get; } =
     {
         new("Ultra (15 ms)", 15),
@@ -66,6 +70,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         _settings = MixerSettings.Load();
         _eqPresets = new EqPresetStore(_settings.EqPresets, Save);
         RemoveChannelCommand = new RelayCommand(p => RemoveChannel(p as ChannelViewModel));
+        DismissStatusCommand = new RelayCommand(_ => ClearStatus());
         _engine.SourceLost += OnEngineSourceLost;
 
         foreach (var device in AudioDevices.GetActiveRenderDevices())
@@ -119,7 +124,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private void HandleSourceLost(Exception? error)
     {
         Log.Write($"MixerViewModel: source lost ({error?.Message ?? "device removed"}), recovering");
-        EngineStatus = $"Source '{SourceName}' disconnected - recovering...";
+        SetStatus($"Source '{SourceName}' disconnected - recovering...", isError: false);
         TryRecover();
     }
 
@@ -144,7 +149,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
         if (Sources.Count == 0)
         {
-            EngineStatus = "No audio output device available. Connect a device.";
+            SetStatus("No audio output device available. Connect a device.", isError: true);
             return;
         }
 
@@ -167,7 +172,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
             var source = ResolveSource();
             if (source is null)
             {
-                EngineStatus = "No audio output device available. Connect a device.";
+                SetStatus("No audio output device available. Connect a device.", isError: true);
                 return;
             }
 
@@ -177,9 +182,10 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
             if (_engine.IsCapturing)
             {
-                EngineStatus = switched
-                    ? $"Source switched to '{source.FriendlyName}'."
-                    : "";
+                if (switched)
+                    SetStatus($"Source switched to '{source.FriendlyName}'.", isError: false);
+                else
+                    ClearStatus();
                 NotifySourceChanged();
                 Save();
             }
@@ -212,7 +218,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
         if (_engine.IsCapturing)
         {
-            EngineStatus = $"Source restored to '{preferred.FriendlyName}'.";
+            SetStatus($"Source restored to '{preferred.FriendlyName}'.", isError: false);
             NotifySourceChanged();
             return;
         }
@@ -381,16 +387,17 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         try
         {
             _engine.Start(source);
-            EngineStatus = "";
+            ClearStatus();
             started = true;
         }
         catch (COMException ex)
         {
             Log.Write($"Engine.Start FAILED for '{source.FriendlyName}': {ex}");
             _engine.Stop();
-            EngineStatus = (uint)ex.HResult == 0x8889000A
+            SetStatus((uint)ex.HResult == 0x8889000A
                 ? $"Cannot capture '{source.FriendlyName}': locked in exclusive mode by another app. Pick a different source."
-                : $"Cannot capture '{source.FriendlyName}': error 0x{ex.HResult:X8}. Pick a different source.";
+                : $"Cannot capture '{source.FriendlyName}': error 0x{ex.HResult:X8}. Pick a different source.",
+                isError: true);
         }
 
         foreach (var channel in Channels)
@@ -439,10 +446,35 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         Save();
     }
 
+    /// <summary>
+    /// Text shown in the notification bubble (empty = hidden). Set it through <see cref="SetStatus"/>
+    /// so the error/info severity travels with the message and the bubble colours itself correctly.
+    /// </summary>
     public string EngineStatus
     {
         get => _engineStatus;
         private set { _engineStatus = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>True = the bubble is a failure (red); false = an informational notice (blue).</summary>
+    public bool EngineStatusIsError
+    {
+        get => _engineStatusIsError;
+        private set { _engineStatusIsError = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>Show a notification. <paramref name="isError"/> picks the red vs. blue styling.</summary>
+    private void SetStatus(string message, bool isError)
+    {
+        EngineStatusIsError = isError;
+        EngineStatus = message;
+    }
+
+    /// <summary>Hide the notification bubble.</summary>
+    private void ClearStatus()
+    {
+        EngineStatusIsError = false;
+        EngineStatus = "";
     }
 
     public double MasterVolume

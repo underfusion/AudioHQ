@@ -18,6 +18,11 @@
         <SolidColorBrush x:Key="AccentRed" Color="#FFEF4444" />
         <SolidColorBrush x:Key="AccentBlue" Color="#FF3B82F6" />
 
+        <!-- Notification bubble fills: a faint tint of the accent so the frame reads as a
+             toast (info = blue, error = red) rather than as loose coloured text. -->
+        <SolidColorBrush x:Key="InfoBubbleBrush" Color="#FF1C2A40" />
+        <SolidColorBrush x:Key="ErrorBubbleBrush" Color="#FF35222A" />
+
         <Style x:Key="StripCard" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBrush}" />
             <Setter Property="CornerRadius" Value="12" />
