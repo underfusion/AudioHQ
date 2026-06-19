@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.3.5 - 2026-06-18
+
+### Changed
+- The engine status line is now a notification toast: a rounded, tinted frame
+  with a dismiss (X) button instead of loose red text. Informational notices
+  (e.g. "Source restored to ...", "Source switched to ...") show a blue frame so
+  they no longer read as an error; genuine failures (source locked, no device)
+  keep a red frame. Click the X to dismiss it.
+
 ## 0.3.4 - 2026-06-16
 
 ### Fixed

@@ -2,7 +2,7 @@
 
 > Keep this file truthful to the code. Update it in the same commit as any
 > behavior change it describes (rule: CLAUDE.md "Documentation").
-> Last updated: 2026-06-11 (v0.2.8).
+> Last updated: 2026-06-18 (v0.3.5).
 
 ## Solution layout
 
@@ -146,9 +146,13 @@ and reconnects, so the app never spins on, e.g., a device locked in exclusive mo
     volume + mute of that device), NOT an in-app gain.
   - `LatencyPresets` (15/30/60/100 ms). Changing the preset re-opens every
     active channel so the new buffer size takes effect.
-  - `EngineStatus` - human-readable capture state: failures (e.g. source locked
-    in exclusive mode, `0x8889000A`) and source-loss/recovery notices (see
-    "Source-loss recovery").
+  - `EngineStatus` - human-readable capture state, shown as a dismissable
+    notification toast in `MainWindow` (X button -> `DismissStatusCommand`).
+    `EngineStatusIsError` carries the severity so the bubble colours itself:
+    blue for informational notices (source switched/restored) and red for
+    failures (e.g. source locked in exclusive mode `0x8889000A`, no device).
+    Always set via the `SetStatus`/`ClearStatus` helpers so message and severity
+    stay in sync (see "Source-loss recovery").
 - `ChannelViewModel` (one per non-source device):
   - `IsActive` toggles mirroring (creates/removes the engine `OutputChannel`);
     activation failures map COM errors to short status strings:
