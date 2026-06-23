@@ -3,6 +3,131 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.4.6 - 2026-06-23
+
+### Fixed
+- App mixer scrollbar now overlays the content (HorizontalAlignment="Right") instead
+  of occupying a separate column. The right gap equals the inner Grid's right margin
+  (same 12px as the left content margin). Removed the 6px left/right margins that
+  were pushing the scrollbar out of the column alignment.
+
+## 0.4.5 - 2026-06-23
+
+### Fixed
+- App mixer scrollbar clipped: inner Grid had Width="244" matching the Border's
+  animated width, but WPF adds margin (12px each side) on top of Width, so the
+  Grid overflowed 12px to the right and the scrollbar was hidden behind the
+  Border's ClipToBounds. Changed Width to 220 (244 - 2*12) so the Grid fits
+  exactly within the Border when fully open.
+
+## 0.4.4 - 2026-06-23
+
+### Fixed
+- Right gap when panel is closed: AppPanel.Margin.Right now animates 0->6 on
+  open and 6->0 on close (ThicknessAnimation in code-behind). Initial XAML value
+  changed to "6,0,0,0" so the closed state has a single S=6 gap to the main
+  content (AppPanel.Margin.Left) rather than L=12.
+- Chevron icon off-center: path data changed from "M15 5l-7 7 7 7" (origin at
+  x=15) to "M7 0 L0 7 L7 14" (origin at 0,0). Both natural and 180-rotated
+  states are now symmetrically centered in the Viewbox.
+
+## 0.4.3 - 2026-06-23
+
+### Changed
+- Toggle/panel spacing: AppMixerRegion left 12->6 (S), AppPanel Margin 6,0,6,0 (S
+  each side of the card when open), main DockPanel left 6->0 (AppPanel right margin
+  now owns the 6 px gap to the channels).
+
+## 0.4.2 - 2026-06-23
+
+### Changed
+- Toggle button spacing: left edge to window = L (12 px); right edge to first
+  channel card = S (6 px). Achieved by zeroing all internal margins on the toggle
+  button and AppPanel, removing the AppMixerRegion right margin, and setting the
+  main DockPanel left margin to 6 px.
+
+## 0.4.1 - 2026-06-23
+
+### Changed
+- App mixer scrollbar: permanent #3C4E68 track always visible; white thumb appears
+  only when content overflows (custom AppScrollViewer + AppScrollBar styles). Track
+  column = 12 px = S/2 (3 px) padding + 6 px rail + S/2 (3 px) padding.
+- Drag handle: added 3 px (S/2) right margin, separating it from the app icon.
+- App icons: removed #22FFFFFF background overlay; icon Image now direct (no Border
+  wrapper). Size increased 26 -> 30 px; column width updated to match.
+- AudioHQ removed from its own mixer list (filtered by current process ID on refresh).
+
+## 0.4.0 - 2026-06-23
+
+### Changed
+- Spacing system normalised to two sizes throughout the app: S=6 px, L=12 px.
+  All paddings and margins now use one of these two values only.
+  - Outer window DockPanel margin: 14 -> 12 (L)
+  - Header StackPanel bottom margin: 10 -> 12 (L)
+  - Notification border top margin: 8 -> 6 (S)
+  - AppMixerRegion top/bottom margin: 14 -> 12 (L); left: 4 -> 6 (S)
+  - Inner panel grid margin: 12,10,12,10 -> 12,12,12,12 (all L) - fixes last-row
+    clip by the panel's 12 px corner radius
+  - Refresh button bottom margin: 8 -> 6 (S)
+  - App row padding: right 8 -> 6 (S, now equal left/right); bottom margin 4 -> 6 (S)
+  - Name TextBlock horizontal margins: 7,4 -> 6,6 (S both sides)
+  - Pin button right margin: 3 -> 6 (S)
+  - Volume slider margin: 7,4 -> 6,6 (S both sides)
+- Drag-handle dots icon: Canvas height 48 -> 18 px so the dots centre vertically
+  at app-icon height instead of sitting near the top of the row.
+- Scrollbar track colour: ButtonBrush (#2D3545) -> #3C4E68 for better contrast
+  against CardBrush (#222834). Left margin: 4 -> 6 px (S).
+
+## 0.3.9 - 2026-06-23
+
+### Changed
+- App mixer scrollbar: styled dark - ButtonBrush track with 4 px top/bottom insets,
+  TextBrush thumb; 4 px left margin separates the rail from row content; right side
+  is already padded by the panel grid margin (12 px). Applies globally.
+- App row right controls: pin button now has a 3 px right margin before the vol%
+  text for visual separation (order remains: pin - vol% - mute).
+
+## 0.3.8 - 2026-06-23
+
+### Changed
+- App mixer panel: removed the "Apps" header label to gain one extra row of height.
+- App mixer panel: scrollbar height constraint fixed - the panel now properly fills
+  the window height so `VerticalScrollBarVisibility="Auto"` triggers when needed.
+- Toggle button: chevron now centered in a Viewbox (equal margins, crisp at all DPIs).
+- App row layout restructured: left column holds a **pin button** (top) and a
+  **drag-handle** dots icon (bottom); app icon enlarged to 26x26 px; mute toggle
+  remains on the right; pin button moved from the right to the left column.
+- Drag-and-drop animation improved: dragging now shows a rounded ghost snapshot of
+  the row (with a drop shadow) that follows the cursor; the source row is dimmed
+  to 35% opacity while dragging; the drop target row shows a blue top-border
+  insertion indicator; a custom `DragAdorner` (new class) drives the ghost.
+
+## 0.3.7 - 2026-06-22
+
+### Added
+- Per-app mixer rows can now be **pinned to the top** (pin button) and
+  **dragged to reorder** (grab a row by its icon). Pinned rows are kept above
+  unpinned ones and get a faint blue tint; reordering is confined to a row's pin
+  group. Rows slide smoothly to their new position via `FluidMoveBehavior`
+  (new dependency: `Microsoft.Xaml.Behaviors.Wpf`). The order survives refreshes -
+  a refresh updates rows in place and appends only newly-seen apps at the bottom.
+
+### Changed
+- The app-mixer rail chevron direction is reversed: it points left (`<`) when the
+  panel is collapsed and right (`>`) when it is open.
+
+## 0.3.6 - 2026-06-22
+
+### Added
+- Slide-out per-application mixer on the left. A chevron rail opens a panel that
+  lists the apps currently playing on the default output device (the same set as
+  the Windows volume mixer), each with its icon, a horizontal volume slider and a
+  mute toggle. These drive each app's own Windows volume - fully independent of
+  the mirror strips and the MASTER. The list refreshes when the panel opens, when
+  the window is brought to the front, and from a manual refresh button. New engine
+  module `AppSession` / `AppSessions` (WASAPI Audio Session API), with UI in
+  `AppMixerViewModel` / `AppSessionViewModel` and `AppIcon` for icon extraction.
+
 ## 0.3.5 - 2026-06-18
 
 ### Changed

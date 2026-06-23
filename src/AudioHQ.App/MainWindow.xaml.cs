@@ -2,10 +2,16 @@ using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using AudioHQ.App.ViewModels;
 using AudioHQ.Core;
 
@@ -14,7 +20,22 @@ namespace AudioHQ.App;
 public partial class MainWindow : Window
 {
     private MixerViewModel? _viewModel;
+    private AppMixerViewModel? _appMixer;
     private TrayController? _tray;
+
+    private DragAdorner? _dragAdorner;
+    private AdornerLayer? _adornerLayer;
+    private Border? _dragSourceRow;
+    private Border? _dropTarget;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT pt);
+
+    /// <summary>Expanded width of the slide-out per-app mixer panel (matches its inner grid).</summary>
+    private const double AppPanelWidth = 244;
 
     public MainWindow()
     {
@@ -26,6 +47,14 @@ public partial class MainWindow : Window
         {
             _viewModel = new MixerViewModel();
             DataContext = _viewModel;
+
+            // Per-app mixer lives in its own view model, bound to the left panel only.
+            _appMixer = new AppMixerViewModel();
+            AppMixerRegion.DataContext = _appMixer;
+            // Re-read the app sessions whenever the window comes to the front (restore from tray,
+            // alt-tab back) while the panel is open, so the list stays current.
+            Activated += MainWindow_Activated;
+
             _tray = new TrayController(this,
                 () => _viewModel.MinimizeToTray,
                 () => _viewModel.CloseToTray);
@@ -102,6 +131,181 @@ public partial class MainWindow : Window
     private void Options_Click(object sender, RoutedEventArgs e)
     {
         new OptionsWindow { Owner = this, DataContext = _viewModel }.ShowDialog();
+    }
+
+    // --- Per-app mixer panel (left slide-out) ----------------------------------
+
+    private void MainWindow_Activated(object? sender, EventArgs e)
+    {
+        if (_appMixer?.IsExpanded == true) _appMixer.Refresh();
+    }
+
+    // Toggle the panel open/closed; the setter refreshes the list when it opens.
+    private void ToggleAppPanel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_appMixer is null) return;
+        bool expand = !_appMixer.IsExpanded;
+        _appMixer.IsExpanded = expand;
+        AnimateAppPanel(expand);
+    }
+
+    private void AnimateAppPanel(bool expand)
+    {
+        var duration = new Duration(TimeSpan.FromMilliseconds(180));
+        var ease = new System.Windows.Media.Animation.CubicEase
+            { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+
+        AppPanel.BeginAnimation(WidthProperty,
+            new System.Windows.Media.Animation.DoubleAnimation
+            {
+                To = expand ? AppPanelWidth : 0,
+                Duration = duration,
+                EasingFunction = ease,
+            });
+
+        // Animate AppPanel.Margin.Right 0<->6 so the gap between the card right
+        // edge and the main channels is S=6 when open, and 0 when closed (giving
+        // a total right gap of S=6 in both states: AppPanel.Margin.Left=6 when
+        // closed, AppPanel.Margin.Right=6 when open).
+        AppPanel.BeginAnimation(MarginProperty,
+            new System.Windows.Media.Animation.ThicknessAnimation
+            {
+                To = expand ? new Thickness(6, 0, 6, 0) : new Thickness(6, 0, 0, 0),
+                Duration = duration,
+                EasingFunction = ease,
+            });
+    }
+
+    // Drag-reorder an app row. The drag handle (bottom-left of each row) starts the drag;
+    // a ghost adorner follows the cursor and the source row is dimmed while dragging.
+    private void AppRow_DragStart(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.DataContext is not AppSessionViewModel app) return;
+
+        // Walk up to the tagged row Border.
+        Border? row = null;
+        DependencyObject? curr = fe;
+        while (curr != null)
+        {
+            curr = VisualTreeHelper.GetParent(curr);
+            if (curr is Border b && b.Tag is "AppRow") { row = b; break; }
+        }
+
+        if (row != null)
+        {
+            _adornerLayer = AdornerLayer.GetAdornerLayer(AppPanel);
+            if (_adornerLayer != null)
+            {
+                // Snapshot the row at full opacity before dimming it.
+                var dpi = VisualTreeHelper.GetDpi(row);
+                int w = Math.Max(1, (int)Math.Round(row.ActualWidth * dpi.DpiScaleX));
+                int h = Math.Max(1, (int)Math.Round(row.ActualHeight * dpi.DpiScaleY));
+                var bmp = new RenderTargetBitmap(w, h, dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+                bmp.Render(row);
+                bmp.Freeze();
+
+                var ghost = new Rectangle
+                {
+                    Width = row.ActualWidth,
+                    Height = row.ActualHeight,
+                    RadiusX = 8,
+                    RadiusY = 8,
+                    Fill = new ImageBrush(bmp) { Stretch = Stretch.Fill },
+                    IsHitTestVisible = false,
+                    Effect = new DropShadowEffect
+                    {
+                        BlurRadius = 12,
+                        ShadowDepth = 4,
+                        Opacity = 0.55,
+                        Direction = 270,
+                        Color = Colors.Black,
+                    },
+                };
+                var clickPos = e.GetPosition(row);
+                _dragAdorner = new DragAdorner(AppPanel, ghost, clickPos.X, clickPos.Y);
+                _adornerLayer.Add(_dragAdorner);
+                var initPos = e.GetPosition(AppPanel);
+                _dragAdorner.UpdatePosition(initPos.X, initPos.Y);
+            }
+
+            _dragSourceRow = row;
+            row.Opacity = 0.35;
+        }
+
+        GiveFeedbackEventHandler giveFeedback = (_, gev) =>
+        {
+            gev.UseDefaultCursors = false;
+            Mouse.SetCursor(Cursors.SizeAll);
+            if (_dragAdorner != null && GetCursorPos(out POINT pt))
+            {
+                var rel = AppPanel.PointFromScreen(new Point(pt.X, pt.Y));
+                _dragAdorner.UpdatePosition(rel.X, rel.Y);
+            }
+            gev.Handled = true;
+        };
+        DragDrop.AddGiveFeedbackHandler(fe, giveFeedback);
+
+        e.Handled = true;
+        try
+        {
+            DragDrop.DoDragDrop(fe, app, DragDropEffects.Move);
+        }
+        finally
+        {
+            DragDrop.RemoveGiveFeedbackHandler(fe, giveFeedback);
+            ClearDropHighlight();
+            if (_dragAdorner != null && _adornerLayer != null)
+            {
+                _adornerLayer.Remove(_dragAdorner);
+                _dragAdorner = null;
+                _adornerLayer = null;
+            }
+            if (_dragSourceRow != null)
+            {
+                _dragSourceRow.Opacity = 1.0;
+                _dragSourceRow = null;
+            }
+        }
+    }
+
+    private void AppRow_DragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(AppSessionViewModel)))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+        e.Effects = DragDropEffects.Move;
+
+        if (sender is Border target && !ReferenceEquals(target, _dropTarget)
+            && !ReferenceEquals(target, _dragSourceRow))
+        {
+            ClearDropHighlight();
+            _dropTarget = target;
+            target.BorderThickness = new Thickness(0, 2, 0, 0);
+            target.BorderBrush = (Brush)Application.Current.Resources["AccentBlue"];
+        }
+
+        e.Handled = true;
+    }
+
+    private void AppRow_Drop(object sender, DragEventArgs e)
+    {
+        ClearDropHighlight();
+        if (_appMixer is null) return;
+        if (e.Data.GetData(typeof(AppSessionViewModel)) is not AppSessionViewModel source) return;
+        if (sender is not FrameworkElement fe || fe.DataContext is not AppSessionViewModel target) return;
+        _appMixer.MoveApp(source, target);
+        e.Handled = true;
+    }
+
+    private void ClearDropHighlight()
+    {
+        if (_dropTarget == null) return;
+        _dropTarget.BorderThickness = new Thickness(0);
+        _dropTarget.BorderBrush = Brushes.Transparent;
+        _dropTarget = null;
     }
 
     // Open the graphic-EQ editor for the channel whose EQ pill was clicked.

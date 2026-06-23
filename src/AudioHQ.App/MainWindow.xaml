@@ -3,14 +3,166 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
         mc:Ignorable="d"
         Title="AudioHQ"
         Background="{StaticResource BgBrush}"
         SizeToContent="Width"
         Height="440"
         ResizeMode="CanMinimize">
-    <DockPanel Margin="14">
-        <StackPanel DockPanel.Dock="Top" Margin="2,0,0,10">
+    <DockPanel>
+        <!-- LEFT: collapsible per-app volume mixer, slid in/out with the chevron rail.
+             Bound to its own AppMixerViewModel (DataContext set in code-behind). -->
+        <DockPanel x:Name="AppMixerRegion" DockPanel.Dock="Left" Margin="6,12,0,12"
+                  LastChildFill="True">
+            <!-- Always-visible toggle rail. Chevron points left when collapsed, right when open. -->
+            <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" Width="28" Height="54"
+                    Margin="0,0,0,0" VerticalAlignment="Center" Click="ToggleAppPanel_Click" ToolTip="App volume mixer">
+                <Viewbox Width="10" Height="14">
+                    <Path Data="M7 0 L0 7 L7 14" Stroke="{StaticResource DimTextBrush}" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          RenderTransformOrigin="0.5,0.5">
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                        <Setter Property="LayoutTransform">
+                                            <Setter.Value>
+                                                <RotateTransform Angle="180" />
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+                </Viewbox>
+            </Button>
+
+            <!-- Sliding panel: width animates 0 <-> 244 in code-behind; clipped while collapsed. -->
+            <Border x:Name="AppPanel" DockPanel.Dock="Left" Width="0" ClipToBounds="True"
+                    Background="{StaticResource CardBrush}" CornerRadius="12" Margin="6,0,0,0">
+                <Grid Width="220" Margin="12,12,12,12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <!-- Refresh button: right-aligned. -->
+                    <Button Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,0,6"
+                            Style="{StaticResource IconButton}" Width="26" Height="26"
+                            Command="{Binding RefreshCommand}" ToolTip="Refresh app list">
+                        <Viewbox Width="15" Height="15">
+                            <Path Fill="{StaticResource DimTextBrush}"
+                                  Data="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.74 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                        </Viewbox>
+                    </Button>
+                    <!-- App rows: pin + drag-handle on the left, icon, name, vol%, mute. -->
+                    <ScrollViewer Grid.Row="1" Style="{StaticResource AppScrollViewer}"
+                                  VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled">
+                        <Grid>
+                            <ItemsControl ItemsSource="{Binding Apps}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel>
+                                            <b:Interaction.Behaviors>
+                                                <b:FluidMoveBehavior AppliesTo="Children" Tag="DataContext"
+                                                                     Duration="0:0:0.3">
+                                                    <b:FluidMoveBehavior.EaseX>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </b:FluidMoveBehavior.EaseX>
+                                                    <b:FluidMoveBehavior.EaseY>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </b:FluidMoveBehavior.EaseY>
+                                                </b:FluidMoveBehavior>
+                                            </b:Interaction.Behaviors>
+                                        </StackPanel>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- Row: drop target; pinned rows get a faint blue tint. -->
+                                        <Border Tag="AppRow" CornerRadius="8" Padding="6" Margin="0,0,0,6"
+                                                ClipToBounds="True"
+                                                AllowDrop="True" Drop="AppRow_Drop" DragOver="AppRow_DragOver">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{StaticResource BgBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource InfoBubbleBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="16" />   <!-- drag handle -->
+                                                    <ColumnDefinition Width="30" />   <!-- app icon -->
+                                                    <ColumnDefinition Width="*" />    <!-- name -->
+                                                    <ColumnDefinition Width="Auto" /> <!-- pin + vol% + mute -->
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <!-- Left column: drag handle only. -->
+                                                <Border Grid.Column="0" Grid.RowSpan="2" Background="Transparent"
+                                                        Margin="0,0,6,0"
+                                                        Cursor="SizeAll" ToolTip="Drag to reorder"
+                                                        MouseLeftButtonDown="AppRow_DragStart">
+                                                    <Canvas Width="14" Height="18"
+                                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Path Fill="{StaticResource DimTextBrush}"
+                                                              Data="M 3 3 m -1.3 0 a 1.3 1.3 0 1 0 2.6 0 a 1.3 1.3 0 1 0 -2.6 0 M 11 3 m -1.3 0 a 1.3 1.3 0 1 0 2.6 0 a 1.3 1.3 0 1 0 -2.6 0 M 3 9 m -1.3 0 a 1.3 1.3 0 1 0 2.6 0 a 1.3 1.3 0 1 0 -2.6 0 M 11 9 m -1.3 0 a 1.3 1.3 0 1 0 2.6 0 a 1.3 1.3 0 1 0 -2.6 0 M 3 15 m -1.3 0 a 1.3 1.3 0 1 0 2.6 0 a 1.3 1.3 0 1 0 -2.6 0 M 11 15 m -1.3 0 a 1.3 1.3 0 1 0 2.6 0 a 1.3 1.3 0 1 0 -2.6 0" />
+                                                    </Canvas>
+                                                </Border>
+                                                <!-- App icon (26 x 26). -->
+                                                <Image Grid.Column="1" Grid.RowSpan="2"
+                                                       Source="{Binding Icon}" Width="30" Height="30"
+                                                       VerticalAlignment="Center" IsHitTestVisible="False"
+                                                       RenderOptions.BitmapScalingMode="HighQuality" />
+                                                <!-- Name -->
+                                                <TextBlock Grid.Column="2" Grid.Row="0" Text="{Binding Name}"
+                                                           Margin="6,0,6,0" Foreground="{StaticResource TextBrush}"
+                                                           FontSize="11" FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <!-- Pin + vol% + mute -->
+                                                <StackPanel Grid.Column="3" Grid.Row="0" Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
+                                                    <Button Style="{StaticResource PinButton}"
+                                                            VerticalAlignment="Center" Margin="0,0,6,0"
+                                                            Command="{Binding DataContext.PinCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}" />
+                                                    <TextBlock Text="{Binding VolumePercent}" MinWidth="22"
+                                                               TextAlignment="Right" FontSize="10"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource DimTextBrush}" />
+                                                    <ToggleButton Style="{StaticResource MuteIconToggle}"
+                                                                  IsChecked="{Binding Muted}" Margin="6,0,0,0" />
+                                                </StackPanel>
+                                                <!-- Slider -->
+                                                <Slider Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="1"
+                                                        Style="{StaticResource AppSlider}" Margin="6,6,6,0"
+                                                        Value="{Binding Volume, Mode=TwoWay}" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="No apps playing" Foreground="{StaticResource DimTextBrush}"
+                                       FontSize="11" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </DockPanel>
+
+        <!-- MAIN: source master + output strips (unchanged). -->
+        <DockPanel Margin="0,12,12,12">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
             <!-- Title row: AudioHQ label left, options gear right. -->
             <Grid>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -30,7 +182,7 @@
             </Grid>
             <!-- Status notification: a self-dismissing toast (X to close). Blue frame for
                  informational notices (source switched/restored), red for failures. -->
-            <Border CornerRadius="8" Padding="10,7" Margin="0,8,0,0" BorderThickness="1">
+            <Border CornerRadius="8" Padding="10,7" Margin="0,6,0,0" BorderThickness="1">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="{StaticResource InfoBubbleBrush}" />
@@ -197,7 +349,7 @@
                                     </ToggleButton>
                                     <!-- One pill: clicking the body toggles EQ; the gear sits
                                          inside at the right edge and opens the editor. -->
-                                    <Grid Margin="0,3,0,0">
+                                    <Grid Margin="0,6,0,0">
                                         <ToggleButton Style="{StaticResource EqPillToggle}"
                                                       IsChecked="{Binding EqEnabled, Mode=TwoWay}"
                                                       ToolTip="Toggle EQ on/off" />
@@ -245,5 +397,6 @@
                         Click="AddChannel_Click" />
             </Border>
         </StackPanel>
+        </DockPanel>
     </DockPanel>
 </Window>

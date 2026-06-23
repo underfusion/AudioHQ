@@ -2,7 +2,7 @@
 
 > Keep this file truthful to the code. Update it in the same commit as any
 > behavior change it describes (rule: CLAUDE.md "Documentation").
-> Last updated: 2026-06-18 (v0.3.5).
+> Last updated: 2026-06-22 (v0.3.7).
 
 ## Solution layout
 
@@ -160,6 +160,44 @@ and reconnects, so the app never spins on, e.g., a device locked in exclusive mo
     `0x88890004` device unavailable.
   - `Gain` (0..2, shown as %) and `IsMuted` write through to the live channel.
 - `GainToBrushConverter` - slider coloring (UI only).
+
+### Per-app mixer (slide-out panel)
+
+A second, independent surface next to the mirror strips: the left slide-out panel
+is the Windows volume mixer, in app. It is **orthogonal to the mirror engine** -
+it touches per-application Windows volumes, not the capture/fan-out pipeline.
+
+- **Engine side (`AudioHQ.Core`).** `AppSessions.ForDefaultRender()` takes a fresh
+  snapshot of the WASAPI audio sessions on the default render endpoint
+  (`MMDevice.AudioSessionManager.Sessions`), skipping expired ones, and wraps each
+  in an `AppSession`. `AppSession` resolves a friendly name (exe `FileDescription`
+  -> process name -> declared `DisplayName`), the exe path (for the icon), a stable
+  `Key` (the session instance identifier, or `pid:<n>`), and exposes the session's
+  own `Volume` (0..1) and `Muted` via `SimpleAudioVolume`. Every COM access is
+  guarded - a session can expire mid-call - so reads fall back to last values and
+  writes are no-ops on a dead session. The wrapper roots its source `MMDevice` so
+  the session COM objects stay valid after the enumerator is gone. The snapshot is
+  taken on demand, never polled.
+- **UI side (`AudioHQ.App`).** `AppMixerViewModel` holds the rows
+  (`AppSessionViewModel`) and an `IsExpanded`/`IsEmpty` state. `Refresh()` reconciles
+  the live snapshot against the existing rows by `Key` (update in place / add / remove,
+  then sort: system sounds first, then alphabetical), so sliders do not rebuild or
+  flicker. It refreshes on three triggers: the panel opening (`IsExpanded` setter),
+  the window being activated (`MainWindow.Activated`, only while open), and the manual
+  refresh button (`RefreshCommand`). `AppIcon` extracts a frozen `ImageSource` from the
+  exe via `System.Drawing.Icon` + `Imaging.CreateBitmapSourceFromHIcon`; it returns null
+  (neutral placeholder) for system sounds and unreadable/elevated apps. The panel width
+  animates 0 <-> 244 in `MainWindow.AnimateAppPanel`; the region binds to its own
+  `AppMixerViewModel` (set in code-behind), separate from the window's `MixerViewModel`.
+- **Row order (pin / drag).** `Apps` is the display order itself. Rows can be pinned
+  (`PinCommand` -> `TogglePin`, which flips `AppSessionViewModel.IsPinned` and `Move`s the
+  row to the pinned/unpinned boundary) and drag-reordered (`AppRow_DragStart` on the icon
+  -> `MoveApp`), with reordering confined to a row's pin group so the pinned block stays on
+  top. `Refresh` preserves this order - it updates rows in place by key, drops ended ones,
+  and appends only newly-seen (always unpinned) apps at the bottom; it never re-sorts. The
+  order is in-session only (rows are keyed by the volatile session id, so pins reset when an
+  app's session ends or the app restarts). `FluidMoveBehavior` (Microsoft.Xaml.Behaviors.Wpf)
+  on the items `StackPanel` animates rows sliding to their new position on any reorder.
 
 ### Tray & startup (AudioHQ.App)
 

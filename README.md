@@ -27,6 +27,10 @@ Windows lets you play to one output device at a time. AudioHQ removes that limit
 - **Per-output volume.** Every output is a strip with an ON/OFF mirror toggle and
   a gain fader (0-200%, unity at 100%, colour-zoned green/amber/red).
 - **Master strip.** Controls the Windows volume of the *source* device directly.
+- **Per-app mixer (slide-out).** A left panel that lists the apps currently playing
+  on the default output - the Windows volume mixer, in app - each with its own
+  volume slider and mute. Open it from the chevron rail; it refreshes when shown,
+  when the window comes to the front, and from a refresh button.
 - **Adaptive drift compensation.** Independent device clocks normally let the delay
   slowly creep until an audible re-sync jump. AudioHQ continuously nudges each
   output's resample ratio (by a fraction of a percent - inaudible) to hold the
