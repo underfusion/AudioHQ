@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using AudioHQ.App;
 using AudioHQ.Core;
+using Microsoft.Win32;
 using NAudio.CoreAudioApi;
 
 namespace AudioHQ.App.ViewModels;
@@ -35,6 +36,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private bool _dirty;
     private bool _isEditingMaster;
     private bool _recovering;
+    private ChannelViewModel? _focusedChannel;
 
     // The source the USER chose (persisted as SourceDeviceId). Distinct from _selectedSource,
     // which is whatever is actually live and may be a fallback when the chosen device is not
@@ -46,16 +48,36 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     // switch-back watchdog until they disappear and reappear, so we never spin retrying a bad one.
     private readonly HashSet<string> _unstartableSources = new();
 
+    // Resume handling: after a wake-up, devices come back staggered over several seconds, so
+    // the watchdog keeps retrying aggressively (fresh retry budgets) for this many ticks.
+    private int _resumeTicksLeft;
+    private DateTime _lastTickUtc = DateTime.UtcNow;
+
     /// <summary>How often the background watchdog re-checks devices and engine health.</summary>
     private static readonly TimeSpan HealthInterval = TimeSpan.FromSeconds(3);
 
+    /// <summary>Watchdog ticks with forced channel-retry budgets after a resume (~30 s).</summary>
+    private const int ResumeGraceTicks = 10;
+
+    /// <summary>A tick gap this large means the machine slept through timer time - treat as resume.
+    /// SystemEvents.PowerModeChanged is unreliable on Modern Standby, so this is the fallback.</summary>
+    private static readonly TimeSpan ClockJumpThreshold = TimeSpan.FromSeconds(20);
+
     public ObservableCollection<MMDevice> Sources { get; } = new();
     public ObservableCollection<ChannelViewModel> Channels { get; } = new();
+
+    public MixerSettings Settings => _settings;
 
     public ICommand RemoveChannelCommand { get; }
 
     /// <summary>Closes the status notification bubble (the "X" on it).</summary>
     public ICommand DismissStatusCommand { get; }
+
+    /// <summary>Selects (or deselects) a channel as the tray-focus target.</summary>
+    public ICommand FocusChannelCommand { get; }
+
+    /// <summary>The channel currently selected to drive the tray icon and middle-click toggle, or null.</summary>
+    public ChannelViewModel? FocusedChannel => _focusedChannel;
 
     public LatencyPreset[] LatencyPresets { get; } =
     {
@@ -71,6 +93,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         _eqPresets = new EqPresetStore(_settings.EqPresets, Save);
         RemoveChannelCommand = new RelayCommand(p => RemoveChannel(p as ChannelViewModel));
         DismissStatusCommand = new RelayCommand(_ => ClearStatus());
+        FocusChannelCommand = new RelayCommand(p => ToggleFocusChannel(p as ChannelViewModel));
         _engine.SourceLost += OnEngineSourceLost;
 
         foreach (var device in AudioDevices.GetActiveRenderDevices())
@@ -86,12 +109,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
         BuildChannels(source?.ID);
         if (source is not null)
-        {
-            RestartEngine(source);
-            // Restore the ON channels from last session now that capture is running.
-            foreach (var channel in Channels.Where(c => c.PendingActive && c.IsAvailable))
-                channel.IsActive = true;
-        }
+            RestartEngine(source); // also restores the channels saved as ON
 
         _loaded = true;
 
@@ -99,8 +117,12 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         // exe path if the app was moved since it was first enabled).
         StartupRegistration.Set(_settings.RunWithWindows);
 
-        // Background watchdog: keeps the device list current and recovers the engine if the
-        // source ever drops out (see OnEngineSourceLost / HealthCheck).
+        // Resume hint. Known to be missed on some Modern Standby machines, hence the
+        // clock-jump fallback in HealthCheck.
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
+        // Background watchdog: keeps the device list current, recovers the engine if the
+        // source drops out and reactivates wanted channels (see HealthCheck).
         _healthTimer = new DispatcherTimer { Interval = HealthInterval };
         _healthTimer.Tick += (_, _) => HealthCheck();
         _healthTimer.Start();
@@ -130,31 +152,145 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// Periodic watchdog: refresh the device list and, if capture has died or the source device
-    /// has vanished without a clean stop, try to recover. A healthy engine is left untouched.
+    /// has vanished without a clean stop, try to recover. A healthy engine is left untouched,
+    /// but wanted-yet-inactive channels are still given a reactivation chance every tick.
     /// </summary>
     private void HealthCheck()
     {
-        RefreshDevices();
-
-        bool sourceGone = _engine.Source is not null
-                          && Sources.All(d => d.ID != _engine.Source.ID);
-
-        if (_engine.IsCapturing && !sourceGone)
+        try
         {
-            // Healthy. If we are only on a fallback because the chosen source was not ready
-            // earlier, switch back to it now that it has reappeared.
-            TrySwitchToPreferred();
-            return;
+            var now = DateTime.UtcNow;
+            bool sleptThrough = now - _lastTickUtc > HealthInterval + ClockJumpThreshold;
+            _lastTickUtc = now;
+            if (sleptThrough)
+            {
+                Log.Write("HealthCheck: timer gap detected (sleep/resume), forcing full recovery");
+                BeginResumeRecovery();
+                return;
+            }
+
+            RefreshDevices();
+
+            bool sourceGone = _engine.SourceId is not null
+                              && Sources.All(d => d.ID != _engine.SourceId);
+
+            if (_engine.IsCapturing && !sourceGone)
+            {
+                // Healthy. If we are only on a fallback because the chosen source was not ready
+                // earlier, switch back to it now that it has reappeared.
+                TrySwitchToPreferred();
+                ReactivateWantedChannels();
+                return;
+            }
+
+            if (Sources.Count == 0)
+            {
+                SetStatus("No audio output device available. Connect a device.", isError: true);
+                return;
+            }
+
+            Log.Write($"HealthCheck: recovery needed (capturing={_engine.IsCapturing}, sourceGone={sourceGone})");
+            TryRecover();
+            ReactivateWantedChannels();
+        }
+        catch (Exception ex)
+        {
+            // The watchdog must never take the app down; log and let the next tick retry.
+            Log.Write($"HealthCheck failed: {ex}");
+        }
+    }
+
+    /// <summary>Bring back channels that should be ON but are not (device returned, output died).</summary>
+    private void ReactivateWantedChannels()
+    {
+        bool resumeGrace = _resumeTicksLeft > 0;
+        if (resumeGrace) _resumeTicksLeft--;
+
+        foreach (var channel in Channels)
+        {
+            if (resumeGrace) channel.ResetAutoRetry();
+            channel.TryAutoReactivate();
+        }
+    }
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode != PowerModes.Resume) return;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(new Action(BeginResumeRecovery));
+        else
+            BeginResumeRecovery();
+    }
+
+    /// <summary>
+    /// Wake-up recovery: every cached MMDevice may have been invalidated while the machine
+    /// slept even though the endpoints still enumerate fine, so replace them all with fresh
+    /// instances, restart capture and re-open the channels. Devices that are still powering
+    /// up (TV over HDMI, Bluetooth) are picked up by the grace-period watchdog ticks.
+    /// </summary>
+    private void BeginResumeRecovery()
+    {
+        try
+        {
+            Log.Write("Resume detected: refreshing devices and restarting the engine");
+            _resumeTicksLeft = ResumeGraceTicks;
+            _unstartableSources.Clear();
+            foreach (var channel in Channels) channel.ResetAutoRetry();
+            HardRefreshSources();
+            TryRecover();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Resume recovery failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Replace every cached device instance in <see cref="Sources"/> with a freshly enumerated
+    /// one (same ids, new COM objects), fixing up <see cref="_selectedSource"/> so the master
+    /// strip talks to a live AudioEndpointVolume again.
+    /// </summary>
+    private void HardRefreshSources()
+    {
+        List<MMDevice> current;
+        try { current = AudioDevices.GetActiveRenderDevices(); }
+        catch (Exception ex) { Log.Write($"HardRefreshSources failed: {ex.Message}"); return; }
+
+        var fresh = current.ToDictionary(d => d.ID);
+        var adopted = new HashSet<string>();
+
+        for (int i = Sources.Count - 1; i >= 0; i--)
+        {
+            var old = Sources[i];
+            if (fresh.TryGetValue(old.ID, out var replacement))
+            {
+                adopted.Add(old.ID);
+                Sources[i] = replacement;
+                if (ReferenceEquals(_selectedSource, old)) _selectedSource = replacement;
+                old.Dispose();
+            }
+            else
+            {
+                Log.Write($"Device gone after resume: '{old.FriendlyName}'");
+                _unstartableSources.Remove(old.ID);
+                Sources.RemoveAt(i);
+                // Not disposed: it may still be referenced as _selectedSource until recovery
+                // picks a live device.
+            }
         }
 
-        if (Sources.Count == 0)
-        {
-            SetStatus("No audio output device available. Connect a device.", isError: true);
-            return;
-        }
+        foreach (var device in current)
+            if (!adopted.Contains(device.ID))
+            {
+                Log.Write($"Device appeared after resume: '{device.FriendlyName}'");
+                Sources.Add(device);
+            }
 
-        Log.Write($"HealthCheck: recovery needed (capturing={_engine.IsCapturing}, sourceGone={sourceGone})");
-        TryRecover();
+        foreach (var channel in Channels)
+            channel.SetPresent(fresh.ContainsKey(channel.DeviceId));
+
+        NotifySourceChanged();
     }
 
     /// <summary>
@@ -205,7 +341,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void TrySwitchToPreferred()
     {
-        if (_preferredSourceId is null || _preferredSourceId == _engine.Source?.ID) return;
+        if (_preferredSourceId is null || _preferredSourceId == _engine.SourceId) return;
         if (_unstartableSources.Contains(_preferredSourceId)) return;
 
         var preferred = Sources.FirstOrDefault(d => d.ID == _preferredSourceId);
@@ -247,7 +383,8 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// Sync the live device list into <see cref="Sources"/> (add/remove by id, keeping existing
-    /// instances) and re-point each channel onto its device as it appears or disappears.
+    /// instances) and update each channel's presence flag. Runs every watchdog tick, so
+    /// duplicate enumerations are disposed instead of leaking a COM wrapper per device per tick.
     /// </summary>
     private void RefreshDevices()
     {
@@ -267,19 +404,20 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
         var knownIds = Sources.Select(d => d.ID).ToHashSet();
         foreach (var device in current)
+        {
             if (knownIds.Add(device.ID))
             {
                 Log.Write($"Device appeared: '{device.FriendlyName}'");
                 Sources.Add(device);
             }
-
-        // Re-point channels only across a presence transition, to avoid needless churn.
-        foreach (var channel in Channels)
-        {
-            var device = current.FirstOrDefault(d => d.ID == channel.DeviceId);
-            if ((channel.Device is not null) != (device is not null))
-                channel.SetDevice(device);
+            else
+            {
+                device.Dispose(); // duplicate of an instance we already hold
+            }
         }
+
+        foreach (var channel in Channels)
+            channel.SetPresent(currentIds.Contains(channel.DeviceId));
     }
 
     private MMDevice? ResolveSource()
@@ -309,14 +447,25 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
         foreach (var def in defs)
         {
-            var device = Sources.FirstOrDefault(d => d.ID == def.DeviceId);
-            var vm = new ChannelViewModel(_engine, def.DeviceId, device, def.Name, def.Gain,
+            bool present = Sources.Any(d => d.ID == def.DeviceId);
+            var vm = new ChannelViewModel(_engine, def.DeviceId, present, def.Name, def.Gain,
                 () => _selectedLatency.Ms, MarkDirty, _eqPresets, def.Eq)
             {
                 IsSource = def.DeviceId == sourceId,
-                PendingActive = def.Active,
+                WantsActive = def.Active,
             };
             Channels.Add(vm);
+        }
+
+        var focusedDef = defs.FirstOrDefault(d => d.Focused);
+        if (focusedDef is not null)
+        {
+            var ch = Channels.FirstOrDefault(c => c.DeviceId == focusedDef.DeviceId);
+            if (ch is not null)
+            {
+                ch.IsFocused = true;
+                _focusedChannel = ch;
+            }
         }
     }
 
@@ -380,13 +529,19 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
     private void RestartEngine(MMDevice source)
     {
-        var wasActive = Channels.Where(c => c.IsActive).ToList();
-        foreach (var channel in Channels) channel.IsActive = false;
+        // Suspend (not deactivate): the channels keep their ON intent and are restored below.
+        foreach (var channel in Channels) channel.Suspend();
 
+        string sourceId = source.ID;
         bool started = false;
         try
         {
-            _engine.Start(source);
+            // Never hand a cached MMDevice to the engine: after sleep/resume the old COM
+            // object can be invalid even though the endpoint still enumerates. Resolve a
+            // fresh instance by id; the engine owns and disposes it.
+            var live = AudioDevices.FindRenderById(sourceId)
+                ?? throw new InvalidOperationException($"Device '{source.FriendlyName}' is not active.");
+            _engine.Start(live);
             ClearStatus();
             started = true;
         }
@@ -399,13 +554,21 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
                 : $"Cannot capture '{source.FriendlyName}': error 0x{ex.HResult:X8}. Pick a different source.",
                 isError: true);
         }
+        catch (Exception ex)
+        {
+            // A non-COM failure must not escape into the watchdog timer tick (it would pop
+            // the crash dialog every 3 seconds while the device misbehaves).
+            Log.Write($"Engine.Start FAILED for '{source.FriendlyName}': {ex}");
+            _engine.Stop();
+            SetStatus($"Cannot capture '{source.FriendlyName}': {ex.Message}", isError: true);
+        }
 
         foreach (var channel in Channels)
-            channel.IsSource = channel.DeviceId == source.ID;
+            channel.IsSource = channel.DeviceId == sourceId;
 
         if (started)
-            foreach (var channel in wasActive.Where(c => c.IsAvailable))
-                channel.IsActive = true;
+            foreach (var channel in Channels)
+                channel.TryAutoReactivate(force: true);
     }
 
     /// <summary>Devices not yet used as a channel and not the current source - candidates to add.</summary>
@@ -418,7 +581,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     public void AddChannel(MMDevice device)
     {
         if (device is null || Channels.Any(c => c.DeviceId == device.ID)) return;
-        var vm = new ChannelViewModel(_engine, device.ID, device, device.FriendlyName, 1.0,
+        var vm = new ChannelViewModel(_engine, device.ID, present: true, device.FriendlyName, 1.0,
             () => _selectedLatency.Ms, MarkDirty, _eqPresets)
         {
             IsSource = device.ID == _selectedSource?.ID,
@@ -431,9 +594,29 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private void RemoveChannel(ChannelViewModel? channel)
     {
         if (channel is null) return;
+        if (_focusedChannel == channel) ToggleFocusChannel(channel);
         channel.IsActive = false;
         Channels.Remove(channel);
         Log.Write($"Channel removed: '{channel.Name}'");
+        Save();
+    }
+
+    private void ToggleFocusChannel(ChannelViewModel? channel)
+    {
+        if (channel is null) return;
+        var prev = _focusedChannel;
+        if (prev == channel)
+        {
+            prev.IsFocused = false;
+            _focusedChannel = null;
+        }
+        else
+        {
+            if (prev is not null) prev.IsFocused = false;
+            channel.IsFocused = true;
+            _focusedChannel = channel;
+        }
+        OnPropertyChanged(nameof(FocusedChannel));
         Save();
     }
 
@@ -477,13 +660,21 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         EngineStatus = "";
     }
 
+    // Master volume/mute talk straight to the source device's AudioEndpointVolume, which can
+    // die between watchdog ticks (unplug, sleep); a fader drag must never crash a binding.
+
     public double MasterVolume
     {
-        get => _selectedSource?.AudioEndpointVolume.MasterVolumeLevelScalar ?? 0;
+        get
+        {
+            try { return _selectedSource?.AudioEndpointVolume.MasterVolumeLevelScalar ?? 0; }
+            catch (Exception ex) { Log.Write($"MasterVolume read failed: {ex.Message}"); return 0; }
+        }
         set
         {
             if (_selectedSource is null) return;
-            _selectedSource.AudioEndpointVolume.MasterVolumeLevelScalar = (float)Math.Clamp(value, 0, 1);
+            try { _selectedSource.AudioEndpointVolume.MasterVolumeLevelScalar = (float)Math.Clamp(value, 0, 1); }
+            catch (Exception ex) { Log.Write($"MasterVolume set failed: {ex.Message}"); }
             OnPropertyChanged();
             OnPropertyChanged(nameof(MasterPercent));
         }
@@ -491,11 +682,16 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
 
     public bool MasterMuted
     {
-        get => _selectedSource?.AudioEndpointVolume.Mute ?? false;
+        get
+        {
+            try { return _selectedSource?.AudioEndpointVolume.Mute ?? false; }
+            catch (Exception ex) { Log.Write($"MasterMuted read failed: {ex.Message}"); return false; }
+        }
         set
         {
             if (_selectedSource is null) return;
-            _selectedSource.AudioEndpointVolume.Mute = value;
+            try { _selectedSource.AudioEndpointVolume.Mute = value; }
+            catch (Exception ex) { Log.Write($"MasterMuted set failed: {ex.Message}"); }
             OnPropertyChanged();
         }
     }
@@ -543,8 +739,11 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         _dirty = false;
     }
 
+    public void SaveSettings() => Save();
+
     public void Dispose()
     {
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _healthTimer?.Stop();
         _engine.SourceLost -= OnEngineSourceLost;
         if (_dirty) Save();

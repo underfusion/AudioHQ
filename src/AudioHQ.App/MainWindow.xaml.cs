@@ -2,12 +2,14 @@ using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
@@ -22,6 +24,8 @@ public partial class MainWindow : Window
     private MixerViewModel? _viewModel;
     private AppMixerViewModel? _appMixer;
     private TrayController? _tray;
+    private BitmapSource? _windowIconBase;
+    private BitmapSource? _windowIconDot;
 
     private DragAdorner? _dragAdorner;
     private AdornerLayer? _adornerLayer;
@@ -34,8 +38,8 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT pt);
 
-    /// <summary>Expanded width of the slide-out per-app mixer panel (matches its inner grid).</summary>
-    private const double AppPanelWidth = 244;
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr hObject);
 
     public MainWindow()
     {
@@ -49,7 +53,7 @@ public partial class MainWindow : Window
             DataContext = _viewModel;
 
             // Per-app mixer lives in its own view model, bound to the left panel only.
-            _appMixer = new AppMixerViewModel();
+            _appMixer = new AppMixerViewModel(_viewModel.Settings, _viewModel.SaveSettings);
             AppMixerRegion.DataContext = _appMixer;
             // Re-read the app sessions whenever the window comes to the front (restore from tray,
             // alt-tab back) while the panel is open, so the list stays current.
@@ -57,13 +61,21 @@ public partial class MainWindow : Window
 
             _tray = new TrayController(this,
                 () => _viewModel.MinimizeToTray,
-                () => _viewModel.CloseToTray);
+                () => _viewModel.CloseToTray,
+                () => ToggleFocusedChannel());
 
-            // Keep the tray hover text in sync with which outputs are ON/OFF.
+            // Pre-build the two taskbar icon variants (base + green-dot overlay).
+            _windowIconBase = BuildWindowIcon(false);
+            _windowIconDot = BuildWindowIcon(true);
+            if (_windowIconBase is not null) Icon = _windowIconBase;
+
+            // Keep the tray hover text and focus-state icon in sync.
+            _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _viewModel.Channels.CollectionChanged += Channels_CollectionChanged;
             foreach (var channel in _viewModel.Channels)
                 channel.PropertyChanged += Channel_PropertyChanged;
             RefreshTrayTooltip();
+            RefreshTrayFocusState();
 
             // Pin the master's green line and "100" label to the thumb centre at full scale, once
             // the slider template has been realised (and on any resize).
@@ -79,7 +91,13 @@ public partial class MainWindow : Window
         }
     }
 
-    // --- Tray tooltip: live ON/OFF summary of the output channels ---------------
+    // --- Tray tooltip, focus-state icon, and middle-click toggle -----------------
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MixerViewModel.FocusedChannel))
+            RefreshTrayFocusState();
+    }
 
     private void Channels_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -94,6 +112,9 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName is nameof(ChannelViewModel.IsActive) or nameof(ChannelViewModel.Name))
             RefreshTrayTooltip();
+        if (e.PropertyName == nameof(ChannelViewModel.IsActive)
+            && sender is ChannelViewModel c && c == _viewModel?.FocusedChannel)
+            RefreshTrayFocusState();
     }
 
     private void RefreshTrayTooltip()
@@ -104,6 +125,66 @@ public partial class MainWindow : Window
         static string Join(System.Collections.Generic.List<string> names) =>
             names.Count == 0 ? "-" : string.Join(", ", names);
         _tray.SetTooltip($"AudioHQ\nON: {Join(on)}\nOFF: {Join(off)}");
+    }
+
+    private void RefreshTrayFocusState()
+    {
+        if (_viewModel is null || _tray is null) return;
+        var isActive = _viewModel.FocusedChannel?.IsActive;
+        _tray.SetFocusedChannelState(isActive);
+        if (_windowIconBase is not null && _windowIconDot is not null)
+            Icon = isActive == true ? _windowIconDot : _windowIconBase;
+    }
+
+    private void ToggleFocusedChannel()
+    {
+        var channel = _viewModel?.FocusedChannel;
+        if (channel is null) return;
+        channel.IsActive = !channel.IsActive;
+    }
+
+    private BitmapSource? BuildWindowIcon(bool dot)
+    {
+        try
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            var name = Array.Find(asm.GetManifestResourceNames(),
+                n => n.EndsWith("app.ico", StringComparison.OrdinalIgnoreCase));
+            System.Drawing.Icon? baseIcon = null;
+            if (name is not null)
+            {
+                using var stream = asm.GetManifestResourceStream(name);
+                if (stream is not null) baseIcon = new System.Drawing.Icon(stream, 32, 32);
+            }
+            using var bmp = new System.Drawing.Bitmap(32, 32, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+            {
+                g.Clear(System.Drawing.Color.Transparent);
+                if (baseIcon is not null)
+                {
+                    using var baseBmp = baseIcon.ToBitmap();
+                    g.DrawImage(baseBmp, 0, 0, 32, 32);
+                }
+                if (dot)
+                {
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    g.FillEllipse(System.Drawing.Brushes.LimeGreen, 20, 20, 11, 11);
+                }
+            }
+            baseIcon?.Dispose();
+            var hBmp = bmp.GetHbitmap();
+            try
+            {
+                return Imaging.CreateBitmapSourceFromHBitmap(
+                    hBmp, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            }
+            finally { DeleteObject(hBmp); }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"BuildWindowIcon(dot={dot}) failed: {ex.Message}");
+            return null;
+        }
     }
 
     // The master tops out at 100%, so 100% is the top of the track. Pin the green unity line (and
@@ -155,22 +236,22 @@ public partial class MainWindow : Window
         var ease = new System.Windows.Media.Animation.CubicEase
             { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
 
+        var panelWidth = (double)FindResource("AppMixerPanelWidth");
         AppPanel.BeginAnimation(WidthProperty,
             new System.Windows.Media.Animation.DoubleAnimation
             {
-                To = expand ? AppPanelWidth : 0,
+                To = expand ? panelWidth : 0,
                 Duration = duration,
                 EasingFunction = ease,
             });
 
-        // Animate AppPanel.Margin.Right 0<->6 so the gap between the card right
-        // edge and the main channels is S=6 when open, and 0 when closed (giving
-        // a total right gap of S=6 in both states: AppPanel.Margin.Left=6 when
-        // closed, AppPanel.Margin.Right=6 when open).
+        // Keep the animated panel margins aligned with the app-mixer spacing tokens.
+        var openMargin = (Thickness)FindResource("AppMixerPanelOpenMargin");
+        var closedMargin = (Thickness)FindResource("AppMixerPanelClosedMargin");
         AppPanel.BeginAnimation(MarginProperty,
             new System.Windows.Media.Animation.ThicknessAnimation
             {
-                To = expand ? new Thickness(6, 0, 6, 0) : new Thickness(6, 0, 0, 0),
+                To = expand ? openMargin : closedMargin,
                 Duration = duration,
                 EasingFunction = ease,
             });

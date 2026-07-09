@@ -33,6 +33,7 @@ public sealed class AppSession
         var (exe, friendly) = ResolveProcess(ProcessId, TryGet(() => control.DisplayName) ?? "");
         ExecutablePath = exe;
         FriendlyName = IsSystemSounds ? "System sounds" : friendly;
+        AppKey = ResolveAppKey(IsSystemSounds, ExecutablePath, FriendlyName, IconPath);
     }
 
     /// <summary>OS process id behind the session (0 when unknown).</summary>
@@ -53,6 +54,9 @@ public sealed class AppSession
     /// <summary>Stable identity used to match a session across refreshes.</summary>
     public string Key { get; }
 
+    /// <summary>Stable application identity used to group multiple sessions/processes into one UI row.</summary>
+    public string AppKey { get; }
+
     /// <summary>Per-app volume scalar 0..1 (the app's own slider in the Windows mixer).</summary>
     public float Volume
     {
@@ -71,6 +75,16 @@ public sealed class AppSession
     {
         var id = TryGet(() => control.GetSessionInstanceIdentifier);
         return string.IsNullOrEmpty(id) ? $"pid:{pid}" : id!;
+    }
+
+    private static string ResolveAppKey(bool isSystemSounds, string exe, string friendly, string iconPath)
+    {
+        if (isSystemSounds) return "system-sounds";
+        if (!string.IsNullOrWhiteSpace(exe))
+            return "exe:" + exe.Trim().ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(iconPath))
+            return "icon:" + iconPath.Trim().ToUpperInvariant();
+        return "name:" + friendly.Trim().ToUpperInvariant();
     }
 
     // Friendly name priority: exe FileDescription (what the Windows mixer shows) -> process

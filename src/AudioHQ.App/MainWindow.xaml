@@ -13,7 +13,8 @@
     <DockPanel>
         <!-- LEFT: collapsible per-app volume mixer, slid in/out with the chevron rail.
              Bound to its own AppMixerViewModel (DataContext set in code-behind). -->
-        <DockPanel x:Name="AppMixerRegion" DockPanel.Dock="Left" Margin="6,12,0,12"
+        <DockPanel x:Name="AppMixerRegion" DockPanel.Dock="Left"
+                  Margin="{StaticResource AppMixerRegionMargin}"
                   LastChildFill="True">
             <!-- Always-visible toggle rail. Chevron points left when collapsed, right when open. -->
             <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" Width="28" Height="54"
@@ -39,17 +40,18 @@
                 </Viewbox>
             </Button>
 
-            <!-- Sliding panel: width animates 0 <-> 244 in code-behind; clipped while collapsed. -->
+            <!-- Sliding panel width comes from AppMixerPanelWidth in code-behind. -->
             <Border x:Name="AppPanel" DockPanel.Dock="Left" Width="0" ClipToBounds="True"
-                    Background="{StaticResource CardBrush}" CornerRadius="12" Margin="6,0,0,0">
-                <Grid Width="220" Margin="12,12,12,12">
+                    Background="{StaticResource CardBrush}" CornerRadius="12"
+                    Margin="{StaticResource AppMixerPanelClosedMargin}">
+                <Grid Width="{StaticResource AppMixerContentWidth}" Margin="{StaticResource AppMixerContentMargin}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <!-- Refresh button: right-aligned. -->
                     <Button Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Margin="0,0,0,6"
+                            Margin="{StaticResource AppMixerStackGap}"
                             Style="{StaticResource IconButton}" Width="26" Height="26"
                             Command="{Binding RefreshCommand}" ToolTip="Refresh app list">
                         <Viewbox Width="15" Height="15">
@@ -59,7 +61,7 @@
                     </Button>
                     <!-- App rows: pin + drag-handle on the left, icon, name, vol%, mute. -->
                     <ScrollViewer Grid.Row="1" Style="{StaticResource AppScrollViewer}"
-                                  VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled">
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <Grid>
                             <ItemsControl ItemsSource="{Binding Apps}">
                                 <ItemsControl.ItemsPanel>
@@ -82,7 +84,8 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <!-- Row: drop target; pinned rows get a faint blue tint. -->
-                                        <Border Tag="AppRow" CornerRadius="8" Padding="6" Margin="0,0,0,6"
+                                        <Border Tag="AppRow" CornerRadius="8" Padding="{StaticResource AppMixerRowPadding}"
+                                                Margin="{StaticResource AppMixerStackGap}"
                                                 ClipToBounds="True"
                                                 AllowDrop="True" Drop="AppRow_Drop" DragOver="AppRow_DragOver">
                                             <Border.Style>
@@ -161,7 +164,7 @@
         </DockPanel>
 
         <!-- MAIN: source master + output strips (unchanged). -->
-        <DockPanel Margin="0,12,12,12">
+        <DockPanel Margin="12,12,12,12">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
             <!-- Title row: AudioHQ label left, options gear right. -->
             <Grid>
@@ -309,6 +312,13 @@
                                                 Command="{Binding DataContext.RemoveChannelCommand,
                                                           RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" />
+                                        <ToggleButton DockPanel.Dock="Right" Width="16" Height="16" Margin="0,0,2,0"
+                                                      Style="{StaticResource TrayFocusButton}"
+                                                      IsChecked="{Binding IsFocused, Mode=OneWay}"
+                                                      ToolTip="Select for tray control - tray icon shows green dot when ON; middle-click tray icon to toggle this channel on/off"
+                                                      Command="{Binding DataContext.FocusChannelCommand,
+                                                                RelativeSource={RelativeSource AncestorType=Window}}"
+                                                      CommandParameter="{Binding}" />
                                         <TextBlock />
                                     </DockPanel>
                                     <TextBlock Text="{Binding Name}"

@@ -12,6 +12,15 @@
         <sys:Double x:Key="SpacingS">6</sys:Double>
         <sys:Double x:Key="SpacingM">12</sys:Double>
         <sys:Double x:Key="SpacingL">24</sys:Double>
+        <Thickness x:Key="AppMixerRegionMargin">6,12,0,12</Thickness>
+        <Thickness x:Key="AppMixerPanelClosedMargin">6,0,0,0</Thickness>
+        <Thickness x:Key="AppMixerPanelOpenMargin">6,0,6,0</Thickness>
+        <Thickness x:Key="AppMixerContentMargin">12,12,6,12</Thickness>
+        <Thickness x:Key="AppMixerRowPadding">6</Thickness>
+        <Thickness x:Key="AppMixerStackGap">0,0,0,6</Thickness>
+        <Thickness x:Key="AppMixerScrollBarMargin">6,0,0,0</Thickness>
+        <sys:Double x:Key="AppMixerContentWidth">226</sys:Double>
+        <sys:Double x:Key="AppMixerPanelWidth">244</sys:Double>
 
         <SolidColorBrush x:Key="BgBrush" Color="#FF161A22" />
         <SolidColorBrush x:Key="CardBrush" Color="#FF222834" />
@@ -409,23 +418,27 @@
             </Setter>
         </Style>
 
-        <!-- Named scrollbar used inside AppScrollViewer: visible track + TextBrush thumb. -->
+        <!-- Named scrollbar used inside AppScrollViewer: a darker full-width track with a
+             narrower TextBrush thumb centred inside it (dark rail shows on both sides). -->
         <Style x:Key="AppScrollBar" TargetType="ScrollBar">
-            <Setter Property="Width" Value="{StaticResource SpacingM}" />
+            <Setter Property="Width" Value="6" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Margin" Value="{StaticResource AppMixerScrollBarMargin}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollBar">
                         <Grid>
                             <Border Background="#3C4E68" CornerRadius="3"
-                                    Width="{StaticResource SpacingM}" HorizontalAlignment="Center" />
+                                    Width="6" HorizontalAlignment="Center" />
                             <Track x:Name="PART_Track" IsDirectionReversed="True">
                                 <Track.Thumb>
-                                    <Thumb>
+                                    <Thumb MinWidth="0">
                                         <Thumb.Template>
                                             <ControlTemplate TargetType="Thumb">
                                                 <Border x:Name="Bg" CornerRadius="3"
-                                                        Background="{StaticResource TextBrush}" Margin="0,1" />
+                                                        Background="{StaticResource TextBrush}"
+                                                        Width="6" HorizontalAlignment="Center" Margin="0,1" />
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
                                                         <Setter TargetName="Bg" Property="Opacity" Value="0.8" />
@@ -463,18 +476,22 @@
             </Setter>
         </Style>
 
-        <!-- App mixer ScrollViewer: slim custom scrollbar with a visible track.
-             Uses a Grid with the content in column 0 (fills) and scrollbar in column 1 (12 px).
-             Column 1 = 12 px = half(6) padding left + 6 px track. -->
+        <!-- App mixer ScrollViewer: content column plus a slim auto scrollbar.
+             Outer content margin owns the 12px left and bottom inset; the scrollbar
+             only owns its own 6px gutter and 6px rail on the right. -->
         <Style x:Key="AppScrollViewer" TargetType="ScrollViewer">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollViewer">
                         <Grid Background="Transparent">
-                            <ScrollContentPresenter CanContentScroll="{TemplateBinding CanContentScroll}" />
-                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ScrollContentPresenter Grid.Column="0"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}" />
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1"
                                        Style="{StaticResource AppScrollBar}"
-                                       HorizontalAlignment="Right"
                                        Value="{TemplateBinding VerticalOffset}"
                                        Maximum="{TemplateBinding ScrollableHeight}"
                                        ViewportSize="{TemplateBinding ViewportHeight}"
@@ -588,6 +605,36 @@
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Glyph" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dot selector for tray-focus: outlined circle, fills green when this channel drives
+             the tray icon and responds to middle-click. -->
+        <Style x:Key="TrayFocusButton" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid Background="Transparent">
+                            <Ellipse x:Name="Dot" Width="8" Height="8"
+                                     Stroke="{StaticResource DimTextBrush}" StrokeThickness="1.5"
+                                     Fill="Transparent" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Dot" Property="Fill" Value="{StaticResource AccentGreen}" />
+                                <Setter TargetName="Dot" Property="Stroke" Value="{StaticResource AccentGreen}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Dot" Property="Stroke" Value="{StaticResource AccentGreen}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

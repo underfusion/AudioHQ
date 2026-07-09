@@ -21,6 +21,8 @@ namespace AudioHQ.App.ViewModels;
 /// </summary>
 public sealed class AppMixerViewModel : ViewModelBase
 {
+    private readonly MixerSettings _settings;
+    private readonly Action _saveSettings;
     private bool _isExpanded;
     private bool _isEmpty = true;
 
@@ -32,8 +34,10 @@ public sealed class AppMixerViewModel : ViewModelBase
     /// <summary>Toggles a row's pinned state (parameter = the <see cref="AppSessionViewModel"/>).</summary>
     public ICommand PinCommand { get; }
 
-    public AppMixerViewModel()
+    public AppMixerViewModel(MixerSettings settings, Action saveSettings)
     {
+        _settings = settings;
+        _saveSettings = saveSettings;
         RefreshCommand = new RelayCommand(_ => Refresh());
         PinCommand = new RelayCommand(p => { if (p is AppSessionViewModel vm) TogglePin(vm); });
     }
@@ -74,16 +78,13 @@ public sealed class AppMixerViewModel : ViewModelBase
         // Filter out System Sounds — the user does not want it in the mixer.
         sessions = sessions.Where(s => !s.IsSystemSounds).ToList();
 
-        // Deduplicate: keep only the first session per ProcessId. The same process may
-        // register multiple WASAPI sessions; we show it once.
-        // Also keep one row per stable key in case two different processes somehow share a key.
-        var seenPids = new HashSet<uint>();
+        // Deduplicate by stable application identity. Browsers/Electron apps often expose
+        // multiple WASAPI sessions or processes, but the panel should show one row per app.
         var incoming = new Dictionary<string, AppSession>();
         foreach (var session in sessions)
         {
-            if (seenPids.Contains(session.ProcessId)) continue;
-            seenPids.Add(session.ProcessId);
-            incoming[session.Key] = session;
+            if (!incoming.ContainsKey(session.AppKey))
+                incoming[session.AppKey] = session;
         }
 
         var existing = Apps.ToDictionary(a => a.Key);
@@ -94,14 +95,21 @@ public sealed class AppMixerViewModel : ViewModelBase
             if (!incoming.ContainsKey(Apps[i].Key))
                 Apps.RemoveAt(i);
 
-        // Append newly-seen apps (always unpinned) at the bottom in a sensible default order,
-        // so the pinned block stays on top and existing rows never move under the user.
+        // Append newly-seen apps, restoring their pinned state if this app was seen before.
+        // Saved ordering is applied after the append so returning pinned apps land back in place.
         var present = Apps.Select(a => a.Key).ToHashSet();
+        var saved = _settings.AppMixerApps.ToDictionary(a => a.Key);
         var added = incoming.Values
-            .Where(s => !present.Contains(s.Key))
+            .Where(s => !present.Contains(s.AppKey))
             .OrderBy(s => s.FriendlyName, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
-        foreach (var session in added) Apps.Add(new AppSessionViewModel(session));
+        foreach (var session in added)
+        {
+            saved.TryGetValue(session.AppKey, out var state);
+            Apps.Add(new AppSessionViewModel(session, state?.Pinned == true));
+        }
+
+        ApplySavedOrder();
 
         IsEmpty = Apps.Count == 0;
     }
@@ -120,6 +128,7 @@ public sealed class AppMixerViewModel : ViewModelBase
         int target = Apps.Count(a => a.IsPinned && !ReferenceEquals(a, vm));
         target = Math.Clamp(target, 0, Apps.Count - 1);
         if (current != target) Apps.Move(current, target);
+        SaveLayout();
     }
 
     /// <summary>Drag-reorder: move <paramref name="source"/> to <paramref name="target"/>'s slot.
@@ -132,5 +141,39 @@ public sealed class AppMixerViewModel : ViewModelBase
         int from = Apps.IndexOf(source), to = Apps.IndexOf(target);
         if (from < 0 || to < 0 || from == to) return;
         Apps.Move(from, to);
+        SaveLayout();
+    }
+
+    private void ApplySavedOrder()
+    {
+        if (_settings.AppMixerApps.Count == 0 || Apps.Count < 2) return;
+
+        var savedOrder = _settings.AppMixerApps
+            .Select((state, index) => new { state.Key, state.Pinned, Index = index })
+            .ToDictionary(x => x.Key);
+
+        var ordered = Apps
+            .Select((vm, index) => new { Vm = vm, CurrentIndex = index })
+            .OrderBy(x => x.Vm.IsPinned ? 0 : 1)
+            .ThenBy(x => savedOrder.TryGetValue(x.Vm.Key, out var state) ? state.Index : int.MaxValue)
+            .ThenBy(x => x.CurrentIndex)
+            .Select(x => x.Vm)
+            .ToList();
+
+        for (int target = 0; target < ordered.Count; target++)
+        {
+            int current = Apps.IndexOf(ordered[target]);
+            if (current >= 0 && current != target)
+                Apps.Move(current, target);
+        }
+    }
+
+    private void SaveLayout()
+    {
+        var currentKeys = Apps.Select(a => a.Key).ToHashSet();
+        var current = Apps.Select(a => new AppMixerDefinition { Key = a.Key, Pinned = a.IsPinned });
+        var absent = _settings.AppMixerApps.Where(a => !currentKeys.Contains(a.Key));
+        _settings.AppMixerApps = current.Concat(absent).ToList();
+        _saveSettings();
     }
 }

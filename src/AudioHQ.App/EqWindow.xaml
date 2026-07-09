@@ -49,8 +49,8 @@
                                            Height="18" />
                                 <Slider Orientation="Vertical" Height="150" Width="30"
                                         HorizontalAlignment="Center"
-                                        Minimum="-12" Maximum="12" Value="{Binding GainDb}"
-                                        TickPlacement="Both" Ticks="-12,-6,0,6,12"
+                                        Minimum="-36" Maximum="12" Value="{Binding GainDb}"
+                                        TickPlacement="Both" Ticks="12,0,-12,-24,-36"
                                         IsSnapToTickEnabled="False" IsMoveToPointEnabled="True"
                                         ToolTip="Double-click to reset to 0 dB"
                                         PreviewMouseLeftButtonDown="BandSlider_PreviewMouseLeftButtonDown" />
@@ -72,6 +72,38 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Grid>
+        </Border>
+
+        <!-- Bass-only high-cut: pass the deep low end, roll everything above the cutoff off.
+             The right tool for a bass shaker. Applies on top of the peaking bands above. -->
+        <Border Margin="0,12,0,0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="14,10">
+            <StackPanel>
+                <DockPanel>
+                    <CheckBox Content="Bass-only (low-pass)" DockPanel.Dock="Left" Cursor="Hand"
+                              Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                              IsChecked="{Binding Eq.LowPassEnabled}"
+                              ToolTip="Cut everything above the cutoff - keep only the low bass for a shaker" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                IsEnabled="{Binding Eq.LowPassEnabled}">
+                        <RadioButton Content="12 dB/oct" GroupName="slope" Cursor="Hand"
+                                     Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                     IsChecked="{Binding Eq.Is12dB}" />
+                        <RadioButton Content="24 dB/oct" GroupName="slope" Cursor="Hand" Margin="12,0,0,0"
+                                     Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                     IsChecked="{Binding Eq.Is24dB}" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel Margin="0,8,0,0" IsEnabled="{Binding Eq.LowPassEnabled}">
+                    <TextBlock Text="Cutoff" DockPanel.Dock="Left" VerticalAlignment="Center"
+                               Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,0,10,0" />
+                    <TextBlock Text="{Binding Eq.LowPassText}" DockPanel.Dock="Right" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold"
+                               Width="54" TextAlignment="Right" />
+                    <Slider Minimum="30" Maximum="500" Value="{Binding Eq.LowPassHz}"
+                            VerticalAlignment="Center" IsMoveToPointEnabled="True"
+                            TickPlacement="BottomRight" Ticks="30,60,80,120,200,300,500" />
+                </DockPanel>
+            </StackPanel>
         </Border>
 
         <!-- Presets: pick + Load/Delete on top, name + Save below. Shared across channels. -->

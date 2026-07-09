@@ -14,7 +14,17 @@ public sealed class MirrorEngine : IDisposable
     private readonly List<OutputChannel> _outputs = new();
     private readonly object _lock = new();
 
+    // Immutable snapshot of _outputs read by the capture callback. Republished under _lock
+    // on every add/remove so the audio thread never takes a lock (a UI-thread add/remove or
+    // a slow log write can then never stall the capture callback).
+    private volatile OutputChannel[] _outputsSnapshot = Array.Empty<OutputChannel>();
+
+    /// <summary>The engine OWNS this instance (disposed on Stop); callers pass a fresh MMDevice.</summary>
     public MMDevice? Source { get; private set; }
+
+    /// <summary>Endpoint id of <see cref="Source"/>, cached at Start so health checks never
+    /// have to read a property off a possibly-dead COM object.</summary>
+    public string? SourceId { get; private set; }
 
     /// <summary>True while a capture is live (as far as the driver has told us).</summary>
     public bool IsCapturing { get; private set; }
@@ -30,6 +40,7 @@ public sealed class MirrorEngine : IDisposable
     {
         Stop();
         Source = source;
+        SourceId = source.ID;
         Log.Write($"Engine.Start: source='{source.FriendlyName}'");
         _capture = new WasapiLoopbackCapture(source);
         _capture.DataAvailable += OnDataAvailable;
@@ -50,11 +61,10 @@ public sealed class MirrorEngine : IDisposable
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
-        lock (_lock)
-        {
-            foreach (var output in _outputs)
-                output.Write(e.Buffer, e.BytesRecorded);
-        }
+        // Lock-free: reads the published snapshot. A channel removed concurrently may still
+        // receive one last Write; OutputChannel guards that with its disposed flag.
+        foreach (var output in _outputsSnapshot)
+            output.Write(e.Buffer, e.BytesRecorded);
     }
 
     public OutputChannel AddOutput(MMDevice device, int latencyMs = 100)
@@ -63,13 +73,21 @@ public sealed class MirrorEngine : IDisposable
             throw new InvalidOperationException("Engine is not started.");
 
         var channel = new OutputChannel(device, _capture.WaveFormat, latencyMs);
-        lock (_lock) _outputs.Add(channel);
+        lock (_lock)
+        {
+            _outputs.Add(channel);
+            _outputsSnapshot = _outputs.ToArray();
+        }
         return channel;
     }
 
     public void RemoveOutput(OutputChannel channel)
     {
-        lock (_lock) _outputs.Remove(channel);
+        lock (_lock)
+        {
+            _outputs.Remove(channel);
+            _outputsSnapshot = _outputs.ToArray();
+        }
         channel.Dispose();
     }
 
@@ -87,12 +105,19 @@ public sealed class MirrorEngine : IDisposable
         }
         IsCapturing = false;
 
+        OutputChannel[] outputs;
         lock (_lock)
         {
-            foreach (var output in _outputs)
-                output.Dispose();
+            outputs = _outputs.ToArray();
             _outputs.Clear();
+            _outputsSnapshot = Array.Empty<OutputChannel>();
         }
+        foreach (var output in outputs)
+            output.Dispose();
+
+        Source?.Dispose();
+        Source = null;
+        SourceId = null;
     }
 
     public void Dispose() => Stop();
@@ -106,15 +131,27 @@ public sealed class OutputChannel : IDisposable
     private readonly VolumeSampleProvider _volume;
     private readonly WasapiOut _out;
     private readonly TimeSpan _maxBacklog;
+    private readonly string _deviceName;
 
     private float _gain = 1f;
     private bool _muted;
+    private volatile bool _disposed;
 
+    /// <summary>The channel OWNS this instance (disposed with the channel).</summary>
     public MMDevice Device { get; }
+
+    /// <summary>
+    /// Raised when playback stops on its own - the output device was removed, disabled or
+    /// invalidated (sleep/resume, unplug) - as opposed to an intentional Dispose. Fires on
+    /// the render thread; marshal before touching UI.
+    /// </summary>
+    public event Action<OutputChannel, Exception?>? PlaybackStopped;
 
     internal OutputChannel(MMDevice device, WaveFormat captureFormat, int latencyMs)
     {
         Device = device;
+        // Cache the name: reading it later off a dead device would hit COM again.
+        _deviceName = device.FriendlyName;
 
         var mixFormat = device.AudioClient.MixFormat;
         // Allow some jitter headroom above the render buffer before resyncing.
@@ -139,8 +176,7 @@ public sealed class OutputChannel : IDisposable
             _buffer.ToSampleProvider(),
             targetRate,
             () => _buffer.BufferedDuration.TotalSeconds,
-            targetBacklogMs / 1000.0,
-            device.FriendlyName);
+            targetBacklogMs / 1000.0);
         Log.Write($"OutputChannel: adaptive resampling {captureFormat.SampleRate} -> {targetRate}, target backlog={targetBacklogMs:0}ms");
 
         // Graphic EQ sits between resampling and gain: it shapes the signal, then the
@@ -163,8 +199,18 @@ public sealed class OutputChannel : IDisposable
             _out.Init(_volume);
             Log.Write("OutputChannel: push-mode init OK");
         }
+        _out.PlaybackStopped += OnOutPlaybackStopped;
         _out.Play();
         Log.Write($"OutputChannel: playing on '{device.FriendlyName}'");
+    }
+
+    private void OnOutPlaybackStopped(object? sender, StoppedEventArgs e)
+    {
+        // Dispose unsubscribes first, so reaching here means an unsolicited stop: the
+        // output endpoint died (invalidated after sleep/resume, unplugged, disabled).
+        if (_disposed) return;
+        Log.Write($"OutputChannel '{_deviceName}': playback stopped unexpectedly. error={e.Exception?.Message ?? "(none)"}");
+        PlaybackStopped?.Invoke(this, e.Exception);
     }
 
     /// <summary>The per-channel graphic EQ; reconfigure it live via <see cref="EqualizerProvider.Configure"/>.</summary>
@@ -186,20 +232,35 @@ public sealed class OutputChannel : IDisposable
 
     internal void Write(byte[] buffer, int count)
     {
+        // The capture thread reads a lock-free snapshot, so one last Write can race a
+        // concurrent RemoveOutput; drop it instead of feeding a dead pipeline.
+        if (_disposed) return;
+
         // Safety net only: AdaptiveResampler normally holds the backlog near its target,
         // but a stall or a big jump (device hiccup, format glitch) can still overrun it.
         // In that case drop the whole queue rather than let the delay creep up permanently.
         if (_buffer.BufferedDuration > _maxBacklog)
         {
             _buffer.ClearBuffer();
-            Log.Write($"OutputChannel '{Device.FriendlyName}': backlog exceeded {_maxBacklog.TotalMilliseconds}ms, resynced");
+            Log.Write($"OutputChannel '{_deviceName}': backlog exceeded {_maxBacklog.TotalMilliseconds}ms, resynced");
         }
         _buffer.AddSamples(buffer, 0, count);
     }
 
     public void Dispose()
     {
-        _out.Stop();
-        _out.Dispose();
+        _disposed = true;
+        _out.PlaybackStopped -= OnOutPlaybackStopped;
+        // Stop/Dispose of a client whose device died can throw; never let teardown escape.
+        try
+        {
+            _out.Stop();
+            _out.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"OutputChannel '{_deviceName}': dispose failed: {ex.Message}");
+        }
+        Device.Dispose();
     }
 }

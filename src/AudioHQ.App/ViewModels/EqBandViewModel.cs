@@ -34,7 +34,7 @@ public sealed class EqBandViewModel : ViewModelBase
         get => _gainDb;
         set
         {
-            double v = Math.Clamp(value, -EqBands.MaxGainDb, EqBands.MaxGainDb);
+            double v = Math.Clamp(value, -EqBands.MaxCutDb, EqBands.MaxBoostDb);
             if (Math.Abs(_gainDb - v) < 0.001) return;
             _gainDb = v;
             OnPropertyChanged();
@@ -62,7 +62,7 @@ public sealed class EqBandViewModel : ViewModelBase
     /// <summary>Set the gain without invoking the change callback (used by Reset, which fires once).</summary>
     public void SetGainSilently(double value)
     {
-        _gainDb = Math.Clamp(value, -EqBands.MaxGainDb, EqBands.MaxGainDb);
+        _gainDb = Math.Clamp(value, -EqBands.MaxCutDb, EqBands.MaxBoostDb);
         OnPropertyChanged(nameof(GainDb));
         OnPropertyChanged(nameof(GainText));
     }

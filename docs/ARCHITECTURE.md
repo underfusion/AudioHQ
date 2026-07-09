@@ -2,7 +2,7 @@
 
 > Keep this file truthful to the code. Update it in the same commit as any
 > behavior change it describes (rule: CLAUDE.md "Documentation").
-> Last updated: 2026-06-22 (v0.3.7).
+> Last updated: 2026-07-08 (v0.5.7).
 
 ## Solution layout
 
@@ -30,7 +30,7 @@ source MMDevice (render endpoint)
    │  WASAPI loopback capture (WasapiLoopbackCapture, ~10 ms chunks)
    ▼
 MirrorEngine.OnDataAvailable          [capture thread]
-   │  lock(_lock) - iterate outputs
+   │  lock-free: iterates a published snapshot of the outputs
    ▼  per output:
 OutputChannel.Write
    │  safety-net backlog check: BufferedDuration > latency+25ms -> ClearBuffer
@@ -42,7 +42,8 @@ AdaptiveResampler                          capture rate -> device mix rate,
    │                                       ratio nudged to hold backlog at target
    ▼
 EqualizerProvider                          per-channel graphic EQ (3/6 peaking
-   │                                       biquads per audio channel); off = bypass
+   │                                       biquads + optional low-pass cascade
+   │                                       per audio channel); off = bypass
    ▼
 VolumeSampleProvider                       gain 0..2, mute = volume 0
    │
@@ -71,16 +72,24 @@ Key decisions:
   Logged each time it happens.
 - **Per-channel EQ (`EqualizerProvider`).** A bank of NAudio peaking-EQ biquad
   filters (one per band per audio channel) sits between resampling and gain.
-  3-band (100 / 1k / 8k Hz) or 6-band (80 / 200 / 500 / 1.2k / 3k / 8k Hz),
-  +/-12 dB each. Each band also has a per-band Q (bell width, clamped to
-  `EqBands.QMin..QMax`); `EqSettings.QValues` carries it, falling back to the
-  band-count default (`Q3`/`Q6`) when unset. Disabled by default (pure
-  pass-through). The UI reconfigures it live; `Configure` rebuilds the filter
-  bank and publishes it atomically under a lock so a gain change cannot tear a
-  filter mid-block on the audio thread. EQ state (enable, band count, gains, Q)
-  is persisted per channel in `settings.json`. The editor draws the response
-  curve as a sum of per-band bells whose width follows Q, so it tracks both the
-  gain faders and the Q knobs.
+  3-band (100 / 1k / 8k Hz) or 6-band (80 / 200 / 500 / 1.2k / 3k / 8k Hz).
+  Faders are asymmetric: +12 dB boost, -36 dB cut (`EqBands.MaxBoostDb` /
+  `MaxCutDb`), so a band can be taken nearly out of the mix. Each band also has a
+  per-band Q (bell width, clamped to `EqBands.QMin..QMax`); `EqSettings.QValues`
+  carries it, falling back to the band-count default (`Q3`/`Q6`) when unset.
+  Optionally a "bass-only" low-pass runs after the bands: a cascade of
+  `BiQuadFilter.LowPassFilter` stages (1 = 12 dB/oct, 2 = 24 dB/oct) at an
+  adjustable cutoff (`LowPassMinHz..LowPassMaxHz`) - it passes the deep low end
+  and rolls off everything above, the tool a bass shaker wants where a peaking
+  bell could only dip. Disabled by default (pure pass-through). The UI
+  reconfigures it live; `Configure` updates the existing filters' coefficients IN
+  PLACE under a lock when the topology (band count, low-pass stages) is unchanged,
+  so the delay-line state survives and dragging a fader never clicks; the bank is
+  rebuilt only on a topology change, and all updates are atomic against the audio
+  thread's `Read`. EQ state (enable, band count, gains, Q, low-pass) is persisted
+  per channel in `settings.json`. The editor draws the response curve as a sum of
+  per-band bells whose width follows Q, so it tracks both the gain faders and the
+  Q knobs (the low-pass has its own numeric cutoff readout).
 - **Push-mode fallback.** Some drivers (notably NVIDIA HDMI) reject
   event-driven shared mode; `OutputChannel` retries with `useEventSync:false`.
 - **`LoopbackMirror`** is the milestone-1 single-target version of the same
@@ -90,38 +99,78 @@ Key decisions:
 ## Threading model
 
 - WASAPI capture delivers buffers on NAudio's capture thread.
-  `MirrorEngine.OnDataAvailable` runs there and only does: lock, iterate,
-  `BufferedWaveProvider.AddSamples`. Keep this path allocation-light and fast.
-- `_lock` in `MirrorEngine` guards the outputs list (Add/Remove vs. iteration).
+  `MirrorEngine.OnDataAvailable` runs there and only does: read the outputs
+  snapshot, `BufferedWaveProvider.AddSamples` per output. It takes NO lock and
+  does no I/O - a UI-thread add/remove or a slow log write can never stall the
+  capture callback. Keep this path allocation-light and fast.
+- `_lock` in `MirrorEngine` guards mutations of the outputs list; every
+  add/remove republishes an immutable snapshot array (volatile) that the capture
+  thread iterates. A channel removed concurrently may receive one final `Write`,
+  which its disposed flag drops.
 - Each `WasapiOut` runs its own render thread reading from the buffered
   provider chain.
 - ViewModels touch the engine only from the UI thread (activate/deactivate,
   gain, mute, source/latency change).
-- `MirrorEngine.SourceLost` is the one event the engine raises back to the UI.
-  NAudio fires `WasapiCapture.RecordingStopped` on the sync-context captured at
-  `StartRecording` (the UI thread here), so it normally arrives on the UI thread,
-  but `MixerViewModel.OnEngineSourceLost` marshals through `Dispatcher` defensively
-  before touching view state.
+- The engine raises two events back to the UI: `MirrorEngine.SourceLost`
+  (capture died) and `OutputChannel.PlaybackStopped` (one output died -
+  invalidated after sleep/resume, unplugged, disabled; `Dispose` unsubscribes
+  first so intentional teardown never fires it). Both can arrive off the UI
+  thread; `MixerViewModel.OnEngineSourceLost` and
+  `ChannelViewModel.OnPlaybackStopped` marshal through the `Dispatcher` before
+  touching view state.
 
-## Source-loss recovery (watchdog)
+## Device-loss recovery (watchdog, sleep/resume)
 
-The capture source can vanish mid-session (USB dongle unplugged, device disabled).
-Two mechanisms keep the app alive and self-healing:
+The capture source or any output can vanish mid-session (USB dongle unplugged,
+device disabled, PC sleep invalidating WASAPI clients). Several mechanisms keep
+the app alive and self-healing:
 
-- **Event path.** `MirrorEngine` subscribes to `RecordingStopped`. An unsolicited
-  stop (the handler is detached before an intentional `Stop`) means the source
-  endpoint was invalidated: `IsCapturing` goes false and `SourceLost` fires.
-  `MixerViewModel.HandleSourceLost` shows a status and calls `TryRecover`.
+- **Fresh MMDevice policy.** A cached `MMDevice` can be invalidated by
+  sleep/resume or unplug/replug even though the endpoint still enumerates fine
+  (`AUDCLNT_E_DEVICE_INVALIDATED` on the old COM object). So nothing that opens
+  an audio client ever reuses a cached instance: channels persist only the
+  endpoint id and resolve a fresh device via `AudioDevices.FindRenderById` at
+  every activation (the `OutputChannel` owns and disposes it), and
+  `RestartEngine` does the same for the capture source (the engine owns it).
+  The instances in `Sources` exist only for the UI (combo box, master volume).
+- **Source event path.** `MirrorEngine` subscribes to `RecordingStopped`. An
+  unsolicited stop (the handler is detached before an intentional `Stop`) means
+  the source endpoint was invalidated: `IsCapturing` goes false and `SourceLost`
+  fires. `MixerViewModel.HandleSourceLost` shows a status and calls `TryRecover`.
+- **Output event path.** Each `OutputChannel` subscribes to its `WasapiOut`'s
+  `PlaybackStopped`. An unsolicited stop raises `OutputChannel.PlaybackStopped`;
+  `ChannelViewModel` detaches the dead output, shows `Reconnecting...` and leaves
+  the ON intent set so the watchdog brings the channel back.
+- **ON intent (`WantsActive`).** Each channel separates "the user wants this ON"
+  (persisted as `ChannelDefinition.Active`) from "it is currently running". Only
+  an explicit user toggle changes the intent; mechanical stops (device loss,
+  engine restart, sleep, becoming the source) go through `Suspend()` and keep it.
+  Every watchdog tick, `TryAutoReactivate` re-opens wanted-but-inactive channels
+  whose device is available, with a small retry budget (3) so a persistently
+  failing device is not hammered; the budget resets when the device reappears,
+  on resume, or on a user action.
 - **Watchdog path.** A `DispatcherTimer` in `MixerViewModel` (`HealthInterval`,
-  3 s) runs `RefreshDevices` (sync the live render-device list into `Sources`,
-  add/remove by id, re-point each channel across an offline/online transition) and
-  recovers if `!IsCapturing` **or** the source device id is no longer in the active
-  list - covering the case where `RecordingStopped` is slow or never arrives.
+  3 s) runs `RefreshDevices` (sync the live render-device list into `Sources` by
+  id, disposing duplicate enumerations; update each channel's presence flag) and
+  recovers if `!IsCapturing` **or** the source device id is no longer in the
+  active list - covering the case where `RecordingStopped` is slow or never
+  arrives. The whole tick is exception-guarded: a failing device can never turn
+  the watchdog into a crash-dialog loop.
+- **Resume recovery.** Two triggers, because `SystemEvents.PowerModeChanged` is
+  documented-unreliable on Modern Standby: the `PowerModes.Resume` event, and a
+  clock-jump fallback (a watchdog tick arriving > ~20 s late means the machine
+  slept through timer time). `BeginResumeRecovery` then clears the unstartable-
+  source list, hard-refreshes `Sources` (every cached instance replaced by a
+  freshly enumerated one, `_selectedSource` re-pointed so the master strip talks
+  to a live `AudioEndpointVolume`), restarts the engine and re-opens wanted
+  channels. For ~10 further ticks (~30 s) the watchdog keeps resetting channel
+  retry budgets so devices that come back staggered (TV over HDMI, Bluetooth)
+  are picked up as they appear.
 
 `TryRecover` (re-entrancy guarded) re-resolves a live source (the preferred one if
 it is back, else the current default render device), calls `RestartEngine` to
-rebuild capture and re-activate the channels that were ON, then reports the outcome
-in `EngineStatus` (`Source switched to 'X'.` when it had to fall back to a
+rebuild capture and re-activate the channels whose intent is ON, then reports the
+outcome in `EngineStatus` (`Source switched to 'X'.` when it had to fall back to a
 different device, cleared on a clean same-device recovery) and persists the choice.
 
 **Preferred vs. active source.** `_preferredSourceId` is the source the user
@@ -172,32 +221,35 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
   (`MMDevice.AudioSessionManager.Sessions`), skipping expired ones, and wraps each
   in an `AppSession`. `AppSession` resolves a friendly name (exe `FileDescription`
   -> process name -> declared `DisplayName`), the exe path (for the icon), a stable
-  `Key` (the session instance identifier, or `pid:<n>`), and exposes the session's
-  own `Volume` (0..1) and `Muted` via `SimpleAudioVolume`. Every COM access is
+  `Key` (the session instance identifier, or `pid:<n>`) plus an app-level
+  `AppKey` based on executable path/icon/name, and exposes the session's own
+  `Volume` (0..1) and `Muted` via `SimpleAudioVolume`. Every COM access is
   guarded - a session can expire mid-call - so reads fall back to last values and
   writes are no-ops on a dead session. The wrapper roots its source `MMDevice` so
   the session COM objects stay valid after the enumerator is gone. The snapshot is
   taken on demand, never polled.
 - **UI side (`AudioHQ.App`).** `AppMixerViewModel` holds the rows
   (`AppSessionViewModel`) and an `IsExpanded`/`IsEmpty` state. `Refresh()` reconciles
-  the live snapshot against the existing rows by `Key` (update in place / add / remove,
-  then sort: system sounds first, then alphabetical), so sliders do not rebuild or
-  flicker. It refreshes on three triggers: the panel opening (`IsExpanded` setter),
+  the live snapshot against the existing rows by `AppKey` (update in place / add /
+  remove), grouping multiple sessions/processes from the same executable into one
+  row so sliders do not rebuild or flicker. It refreshes on three triggers: the
+  panel opening (`IsExpanded` setter),
   the window being activated (`MainWindow.Activated`, only while open), and the manual
   refresh button (`RefreshCommand`). `AppIcon` extracts a frozen `ImageSource` from the
   exe via `System.Drawing.Icon` + `Imaging.CreateBitmapSourceFromHIcon`; it returns null
   (neutral placeholder) for system sounds and unreadable/elevated apps. The panel width
-  animates 0 <-> 244 in `MainWindow.AnimateAppPanel`; the region binds to its own
+  animates 0 <-> `AppMixerPanelWidth` (244) in `MainWindow.AnimateAppPanel`; the region binds to its own
   `AppMixerViewModel` (set in code-behind), separate from the window's `MixerViewModel`.
 - **Row order (pin / drag).** `Apps` is the display order itself. Rows can be pinned
   (`PinCommand` -> `TogglePin`, which flips `AppSessionViewModel.IsPinned` and `Move`s the
   row to the pinned/unpinned boundary) and drag-reordered (`AppRow_DragStart` on the icon
   -> `MoveApp`), with reordering confined to a row's pin group so the pinned block stays on
-  top. `Refresh` preserves this order - it updates rows in place by key, drops ended ones,
-  and appends only newly-seen (always unpinned) apps at the bottom; it never re-sorts. The
-  order is in-session only (rows are keyed by the volatile session id, so pins reset when an
-  app's session ends or the app restarts). `FluidMoveBehavior` (Microsoft.Xaml.Behaviors.Wpf)
-  on the items `StackPanel` animates rows sliding to their new position on any reorder.
+  top. `Refresh` preserves this order - it updates rows in place by app key, drops ended
+  rows, and restores newly-returned apps from the persisted app layout when present.
+  `MixerSettings.AppMixerApps` stores app keys in display order with their pinned state,
+  and keeps entries even while apps are absent so pin/order state comes back when a new
+  session appears. `FluidMoveBehavior` (Microsoft.Xaml.Behaviors.Wpf) on the items
+  `StackPanel` animates rows sliding to their new position on any reorder.
 
 ### Tray & startup (AudioHQ.App)
 

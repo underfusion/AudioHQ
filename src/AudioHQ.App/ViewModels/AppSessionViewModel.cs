@@ -14,9 +14,10 @@ public sealed class AppSessionViewModel : ViewModelBase
     private AppSession _session;
     private bool _isPinned;
 
-    public AppSessionViewModel(AppSession session)
+    public AppSessionViewModel(AppSession session, bool isPinned = false)
     {
         _session = session;
+        _isPinned = isPinned;
         Icon = AppIcon.ForSession(session);
     }
 
@@ -28,9 +29,9 @@ public sealed class AppSessionViewModel : ViewModelBase
     }
 
     /// <summary>Stable key used by the mixer to match this row across refreshes.</summary>
-    public string Key => _session.Key;
+    public string Key => _session.AppKey;
 
-    /// <summary>True for the aggregate "System sounds" row (sorted to the top).</summary>
+    /// <summary>True for the aggregate "System sounds" row.</summary>
     public bool IsSystemSounds => _session.IsSystemSounds;
 
     public string Name => _session.FriendlyName;

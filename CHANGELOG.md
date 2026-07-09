@@ -3,6 +3,176 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.6.1 - 2026-07-09
+
+### Fixed
+- App mixer layout now uses one consistent panel width resource matching its
+  content width and margins, so the right scrollbar is not clipped.
+- Removed the mirrored left scrollbar spacer that made the left inset appear
+  larger than the intended 12px medium spacing.
+
+## 0.6.0 - 2026-07-09
+
+### Fixed
+- App mixer channel list now uses the medium 12px spacing again on the left side
+  and bottom edge.
+
+## 0.5.9 - 2026-07-09
+
+### Fixed
+- App mixer channel list now uses a smaller left spacer and bottom inset, reducing
+  the visible left and lower padding around app rows by half.
+
+## 0.5.8 - 2026-07-09
+
+### Fixed
+- App mixer scrollbar now keeps the same 6px gap on its left side as on the
+  panel's right side, so it no longer touches mixer rows.
+- App mixer panel spacing now uses shared XAML resources for the panel margin,
+  inner padding, row padding and row gaps instead of repeated local pixel values.
+
+## 0.5.7 - 2026-07-08
+
+### Fixed
+- App mixer rows are now grouped by stable application identity, so browsers and
+  Electron apps that expose multiple WASAPI sessions/processes no longer appear
+  as duplicate rows.
+- App mixer pin state and row order are persisted in `settings.json` and kept
+  even while an app is absent, so a pinned app returns to its remembered position
+  when it starts playing again.
+
+## 0.5.6 - 2026-07-06
+
+### Fixed
+- Channels no longer die permanently after PC sleep/resume (the "TV channel
+  stops working until removed and re-added" bug). Root causes fixed:
+  - Cached MMDevice COM objects were reused after resume even though Windows had
+    invalidated them. Every activation (channel outputs and the capture source)
+    now resolves a fresh device by endpoint id (`AudioDevices.FindRenderById`);
+    channels no longer hold a device instance at all, only the id + a presence flag.
+  - A dead output was never detected: `WasapiOut.PlaybackStopped` is now
+    observed (`OutputChannel.PlaybackStopped`), so a channel whose device died
+    shows "Reconnecting..." and is re-opened automatically.
+  - Deactivation on device loss erased the channel's ON state. Channels now keep
+    a persistent "wants active" intent; mechanical stops (device loss, engine
+    restart, sleep, becoming the source) suspend without clearing it, and the
+    3 s watchdog auto-reactivates wanted channels (retry budget 3, reset when
+    the device reappears or after a resume).
+- Resume detection: `SystemEvents.PowerModeChanged` plus a clock-jump fallback
+  (Modern Standby machines often miss the event). On resume the app clears the
+  unstartable-source list, replaces all cached device instances with fresh ones
+  (master volume talks to a live AudioEndpointVolume again), restarts capture
+  and keeps retrying channel re-opens for ~30 s while devices come back staggered.
+- Audio callback stalls: the capture thread no longer takes a lock or writes to
+  the log file while fanning out to outputs (immutable snapshot instead), so a
+  slow disk or a UI-thread add/remove can no longer stutter all channels.
+- EQ adjustments no longer click: `EqualizerProvider.Configure` updates biquad
+  coefficients in place (filter state survives) instead of rebuilding the bank
+  on every fader tick; rebuilds only happen on band-count/low-pass topology
+  changes, and per-tick log spam is gone (structural changes only).
+- `AdaptiveResampler` diagnostic logging removed from the render hot path (it
+  did synchronous file I/O on the WASAPI pull thread); it also returns silence
+  instead of 0 samples if the resampler momentarily produces nothing, so
+  WasapiOut can never mistake a hiccup for end-of-stream.
+- Resource leaks: the 3 s device poll no longer leaks an MMDevice COM wrapper
+  per known device per tick (duplicates disposed); OutputChannel disposes its
+  device; EqWindow unhooks its band-collection event handlers on close (each
+  opened editor used to stay rooted by the channel's EQ model).
+- Robustness: `RestartEngine` catches non-COM exceptions too (a misbehaving
+  device could pop the crash dialog every 3 s from the watchdog); the whole
+  watchdog tick is exception-guarded; master volume/mute reads and writes are
+  guarded against a device dying between ticks; OutputChannel teardown of a
+  dead device can no longer throw out of Dispose.
+
+## 0.5.5 - 2026-07-06
+
+### Added
+- EQ "Bass-only (low-pass)" high-cut: a cascade of low-pass biquads applied on
+  top of the peaking bands. Adjustable cutoff (30-500 Hz) and slope (12 or
+  24 dB/oct). Passes the deep low end and rolls off everything above the cutoff
+  - the correct tool for a bass shaker (keep the rumble, kill the rest), where
+  peaking bells could only dip and never fully remove a range. Persisted per
+  channel (`EqSettings.LowPassEnabled/LowPassHz/LowPassSlope`).
+
+### Changed
+- EQ band faders now cut to -36 dB (was -12). Range is asymmetric: +12 dB boost
+  / -36 dB cut, so a band can be taken nearly out of the mix. `EqBands.MaxGainDb`
+  split into `MaxBoostDb` (12) and `MaxCutDb` (36); the response-curve baseline
+  and limits in the editor were reworked for the off-centre 0 dB.
+
+## 0.5.4 - 2026-06-29
+
+### Fixed
+- Without a scrollbar the app mixer panel had 12px left margin vs 6px right
+  (asymmetric). Reduced the inner Grid left margin from 12px to 6px so both
+  sides are equal (6px) with no scrollbar, and equal (12px) when it is visible.
+  AppPanelWidth adjusted from 244 to 238 to match (6+226+6).
+
+## 0.5.3 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar caused asymmetric row padding: scrollbar took 6px on the
+  right while the left side had no matching gap. Fixed with a three-column
+  AppScrollViewer layout (left spacer | content | scrollbar) where the spacer
+  mirrors the scrollbar width and visibility, keeping rows centred at all times.
+- App mixer scrollbar was always visible even when all rows fit in the viewport.
+  Changed VerticalScrollBarVisibility from Visible to Auto so the bar (and the
+  matching left spacer) collapse when there is nothing to scroll.
+
+## 0.5.2 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar thumb overflowed the 6px rail on both sides because the WPF
+  `ScrollBar` control has a default `MinWidth` (~18px) that overrides the `Width="6"`
+  setter, making the control 18px wide with the thumb stretching to fill it.
+  Fix: added `MinWidth="0"` to AppScrollBar style and gave the thumb's Border an
+  explicit `Width="6" HorizontalAlignment="Center"` so it always matches the 6px rail
+  regardless of the allocated scrollbar width.
+
+## 0.5.1 - 2026-06-29
+
+### Fixed
+- Main content area had 0px left padding vs 12px right padding. Changed main
+  DockPanel margin from `0,12,12,12` to `12,12,12,12` for symmetric spacing.
+
+### Added
+- Focused channel selection (the green dot / tray selector) is now persisted to
+  settings.json and restored on restart. Added `Focused` field to `ChannelDefinition`;
+  `ToggleFocusChannel` calls `Save()` after each change.
+- Taskbar button icon now shows the same green dot overlay as the tray icon when
+  the focused channel is active, using a 32x32 BitmapSource pre-built at startup.
+
+## 0.5.0 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar had asymmetric gaps: 6px on the left (row padding) but 12px
+  on the right (outer Grid right margin). The previous negative-margin trick on the
+  ScrollViewer had no effect because the Grid clips children to its explicit Width.
+  Fix: widened the inner Grid from 220 to 226px and reduced its right margin from
+  12px to 6px so the scrollbar right edge sits 6px from the panel edge, matching the
+  left side. Removed the no-op negative margin from the ScrollViewer.
+
+## 0.4.9 - 2026-06-29
+
+### Changed
+- App mixer scrollbar (AppScrollBar) narrowed from 10px to 6px, matching the
+  global slim scrollbar width.
+
+## 0.4.8 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar thumb was wider than the scrollbar rail due to WPF's default
+  Thumb MinWidth overriding the layout constraint. Added `MinWidth="0"` to the Thumb
+  element and removed the 2px horizontal margins so the thumb fills the rail exactly.
+
+## 0.4.7 - 2026-06-29
+
+### Added
+- Tray-focus selector: a small dot button in each channel header acts as a radio
+  selector (only one channel at a time). When a channel is focused, the tray icon
+  shows a green dot overlay if that channel is ON, and the plain icon when it is
+  OFF. Middle-clicking the tray icon toggles the focused channel on/off.
+
 ## 0.4.6 - 2026-06-23
 
 ### Fixed

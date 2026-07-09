@@ -18,12 +18,24 @@ namespace AudioHQ.App;
 public partial class EqWindow : Window
 {
     private EqViewModel? _eq;
-    private const double MinDb = -12.0, MaxDb = 12.0;
+    private const double MinDb = -36.0, MaxDb = 12.0;
 
     public EqWindow()
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Closed += OnClosed;
+    }
+
+    // The band collection and its items outlive this dialog (they belong to the channel);
+    // unhook on close or every opened-and-closed editor stays rooted by the channel's EQ model.
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        if (_eq is null) return;
+        _eq.Bands.CollectionChanged -= Bands_CollectionChanged;
+        foreach (var band in _eq.Bands)
+            band.PropertyChanged -= Band_PropertyChanged;
+        _eq = null;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -104,6 +116,10 @@ public partial class EqWindow : Window
             double qb = b.QValues is not null && i < b.QValues.Length && b.QValues[i] > 0 ? b.QValues[i] : defaultQ;
             if (Math.Abs(qa - qb) > 0.01) return false;
         }
+        if (a.LowPassEnabled != b.LowPassEnabled) return false;
+        if (a.LowPassEnabled &&
+            (Math.Abs(a.LowPassHz - b.LowPassHz) > 0.5 || a.LowPassSlope != b.LowPassSlope))
+            return false;
         return true;
     }
 
@@ -129,16 +145,19 @@ public partial class EqWindow : Window
         var xs = new List<double>();
         var amps = new List<double>();
         var qs = new List<double>();
-        double baselineY = 0, sliderH = 0;
+        double baselineY = 0, sliderH = 0, faderTopY = 0;
         foreach (var slider in sliders)
         {
             if (slider.DataContext is not EqBandViewModel band) continue;
             Point top = slider.TranslatePoint(new Point(slider.ActualWidth / 2, 0), CurveCanvas);
             double h = slider.ActualHeight;
             sliderH = h;
-            baselineY = top.Y + h / 2;                 // 0 dB sits at the fader's vertical centre
+            faderTopY = top.Y;
+            // Range is asymmetric (+12 .. -36 dB), so 0 dB is not the fader centre: it sits
+            // MaxDb/(MaxDb-MinDb) of the way down from the top (a quarter of the travel).
+            baselineY = top.Y + h * (MaxDb / (MaxDb - MinDb));
             xs.Add(top.X);
-            amps.Add(h * (band.GainDb / (MaxDb - MinDb))); // +/-half-height at +/-full gain
+            amps.Add(h * (band.GainDb / (MaxDb - MinDb))); // pixels = dB * (height / full range)
             qs.Add(band.Q);
         }
         if (xs.Count == 0) return;
@@ -152,8 +171,8 @@ public partial class EqWindow : Window
 
         // Average fader spacing sets the bell width scale; Q narrows or widens it per band.
         double spacing = xs.Count > 1 ? (xs[xs.Count - 1] - xs[0]) / (xs.Count - 1) : w;
-        double topLimit = baselineY - sliderH / 2;
-        double bottomLimit = baselineY + sliderH / 2;
+        double topLimit = faderTopY;                 // +MaxDb (top of the fader travel)
+        double bottomLimit = faderTopY + sliderH;    // -|MinDb| (bottom of the travel)
 
         var curve = new PointCollection();
         for (double x = 0; x <= w; x += 2)
