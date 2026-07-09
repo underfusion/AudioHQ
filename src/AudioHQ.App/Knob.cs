@@ -87,7 +87,7 @@ public sealed class Knob : FrameworkElement
         e.Handled = true;
     }
 
-    protected override void OnRender(DrawingContext dc)
+    protected override void OnRender(DrawingContext drawingContext)
     {
         double size = Math.Min(ActualWidth, ActualHeight);
         if (size <= 0) return;
@@ -99,15 +99,15 @@ public sealed class Knob : FrameworkElement
         var pointer = Brush("AccentBlue", Color.FromRgb(0x3B, 0x82, 0xF6));
 
         // A transparent backing so the whole bounds is hit-testable (drag anywhere on the knob).
-        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, ActualWidth, ActualHeight));
-        dc.DrawEllipse(dial, new Pen(rim, 1.5), centre, radius, radius);
+        drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, ActualWidth, ActualHeight));
+        drawingContext.DrawEllipse(dial, new Pen(rim, 1.5), centre, radius, radius);
 
         double span = Maximum - Minimum;
         double frac = span <= 0 ? 0.5 : Math.Clamp((Value - Minimum) / span, 0, 1);
         double angle = (StartAngle + frac * (EndAngle - StartAngle)) * Math.PI / 180.0;
         var dir = new Vector(Math.Sin(angle), -Math.Cos(angle)); // 0 = up, clockwise
         var tip = centre + dir * (radius - 2);
-        dc.DrawLine(new Pen(pointer, 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round },
+        drawingContext.DrawLine(new Pen(pointer, 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round },
             centre + dir * (radius * 0.35), tip);
     }
 

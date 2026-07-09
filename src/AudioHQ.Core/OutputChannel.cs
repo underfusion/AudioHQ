@@ -1,0 +1,147 @@
+﻿using NAudio.CoreAudioApi;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
+
+namespace AudioHQ.Core;
+
+/// <summary>One mirrored output: buffer -> resample -> gain/mute -> WASAPI render.</summary>
+public sealed class OutputChannel : IDisposable
+{
+    private readonly BufferedWaveProvider _buffer;
+    private readonly EqualizerProvider _equalizer;
+    private readonly VolumeSampleProvider _volume;
+    private readonly WasapiOut _out;
+    private readonly TimeSpan _maxBacklog;
+    private readonly string _deviceName;
+
+    private float _gain = 1f;
+    private bool _muted;
+    private volatile bool _disposed;
+
+    /// <summary>The channel OWNS this instance (disposed with the channel).</summary>
+    public MMDevice Device { get; }
+
+    /// <summary>
+    /// Raised when playback stops on its own - the output device was removed, disabled or
+    /// invalidated (sleep/resume, unplug) - as opposed to an intentional Dispose. Fires on
+    /// the render thread; marshal before touching UI.
+    /// </summary>
+    public event Action<OutputChannel, Exception?>? PlaybackStopped;
+
+    internal OutputChannel(MMDevice device, WaveFormat captureFormat, int latencyMs)
+    {
+        Device = device;
+        // Cache the name: reading it later off a dead device would hit COM again.
+        _deviceName = device.FriendlyName;
+
+        var mixFormat = device.AudioClient.MixFormat;
+        // Allow some jitter headroom above the render buffer before resyncing.
+        // Capture delivers ~10ms chunks, so anything above latency + ~25ms is pure added delay.
+        _maxBacklog = TimeSpan.FromMilliseconds(latencyMs + 25);
+        Log.Write($"OutputChannel: device='{device.FriendlyName}', capture={captureFormat}, deviceMix={mixFormat}, latency={latencyMs}ms, maxBacklog={_maxBacklog.TotalMilliseconds}ms");
+
+        _buffer = new BufferedWaveProvider(captureFormat)
+        {
+            DiscardOnBufferOverflow = true,
+            BufferDuration = TimeSpan.FromSeconds(2),
+        };
+
+        int targetRate = mixFormat.SampleRate;
+        // Trough (minimum backlog) the controller steers toward. It must stay ABOVE the
+        // WASAPI pull granularity (~latencyMs per render callback) plus delivery jitter, or
+        // the buffer underruns at the low point and we feed silence (crackle). latency + 5ms
+        // is the trimmed-down margin; still under the hard resync at latency + 25ms so normal
+        // drift never trips it. Raise back toward +10 if a jittery source starts to crackle.
+        double targetBacklogMs = latencyMs + 5.0;
+        ISampleProvider pipeline = new AdaptiveResampler(
+            _buffer.ToSampleProvider(),
+            targetRate,
+            () => _buffer.BufferedDuration.TotalSeconds,
+            targetBacklogMs / 1000.0);
+        Log.Write($"OutputChannel: adaptive resampling {captureFormat.SampleRate} -> {targetRate}, target backlog={targetBacklogMs:0}ms");
+
+        // Graphic EQ sits between resampling and gain: it shapes the signal, then the
+        // channel gain rides on top. Starts as pure pass-through until the UI configures it.
+        _equalizer = new EqualizerProvider(pipeline);
+        _volume = new VolumeSampleProvider(_equalizer) { Volume = _gain };
+
+        // Some drivers (notably NVIDIA HDMI) reject event-driven shared mode; fall back to push mode.
+        try
+        {
+            _out = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: true, latencyMs);
+            _out.Init(_volume);
+            Log.Write("OutputChannel: event-sync init OK");
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"OutputChannel: event-sync init FAILED: {ex}");
+            _out?.Dispose();
+            _out = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: false, latencyMs);
+            _out.Init(_volume);
+            Log.Write("OutputChannel: push-mode init OK");
+        }
+        _out.PlaybackStopped += OnOutPlaybackStopped;
+        _out.Play();
+        Log.Write($"OutputChannel: playing on '{device.FriendlyName}'");
+    }
+
+    private void OnOutPlaybackStopped(object? sender, StoppedEventArgs e)
+    {
+        // Dispose unsubscribes first, so reaching here means an unsolicited stop: the
+        // output endpoint died (invalidated after sleep/resume, unplugged, disabled).
+        if (_disposed) return;
+        Log.Write($"OutputChannel '{_deviceName}': playback stopped unexpectedly. error={e.Exception?.Message ?? "(none)"}");
+        PlaybackStopped?.Invoke(this, e.Exception);
+    }
+
+    /// <summary>The per-channel graphic EQ; reconfigure it live via <see cref="EqualizerProvider.Configure"/>.</summary>
+    public EqualizerProvider Equalizer => _equalizer;
+
+    public float Gain
+    {
+        get => _gain;
+        set { _gain = Math.Clamp(value, 0f, 2f); ApplyVolume(); }
+    }
+
+    public bool Muted
+    {
+        get => _muted;
+        set { _muted = value; ApplyVolume(); }
+    }
+
+    private void ApplyVolume() => _volume.Volume = _muted ? 0f : _gain;
+
+    internal void Write(byte[] buffer, int count)
+    {
+        // The capture thread reads a lock-free snapshot, so one last Write can race a
+        // concurrent RemoveOutput; drop it instead of feeding a dead pipeline.
+        if (_disposed) return;
+
+        // Safety net only: AdaptiveResampler normally holds the backlog near its target,
+        // but a stall or a big jump (device hiccup, format glitch) can still overrun it.
+        // In that case drop the whole queue rather than let the delay creep up permanently.
+        if (_buffer.BufferedDuration > _maxBacklog)
+        {
+            _buffer.ClearBuffer();
+            Log.Write($"OutputChannel '{_deviceName}': backlog exceeded {_maxBacklog.TotalMilliseconds}ms, resynced");
+        }
+        _buffer.AddSamples(buffer, 0, count);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _out.PlaybackStopped -= OnOutPlaybackStopped;
+        // Stop/Dispose of a client whose device died can throw; never let teardown escape.
+        try
+        {
+            _out.Stop();
+            _out.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"OutputChannel '{_deviceName}': dispose failed: {ex.Message}");
+        }
+        Device.Dispose();
+    }
+}

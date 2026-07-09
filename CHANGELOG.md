@@ -3,6 +3,177 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.8.3 - 2026-07-09
+
+### Changed
+- Closed the refactor plan after automated tests and user-confirmed live app
+  smoke verification.
+
+## 0.8.2 - 2026-07-09
+
+### Changed
+- Updated the refactor checkpoint plan for the final automated regression pass.
+
+## 0.8.1 - 2026-07-09
+
+### Changed
+- Added shared .NET SDK analyzer settings in `Directory.Build.props`.
+- Fixed production analyzer warnings and suppressed test-only naming/exception
+  warnings that conflict with xUnit and COM-status mapping tests.
+- Documented that the `net8.0` migration is deferred because this workspace only
+  has .NET SDK 7.0 installed.
+
+## 0.8.0 - 2026-07-09
+
+### Changed
+- Moved `OutputChannel` from `MirrorEngine.cs` into its own core file.
+- Updated the CLI tester to use `MirrorEngine` instead of the older
+  `LoopbackMirror` path.
+
+## 0.7.9 - 2026-07-09
+
+### Changed
+- Split `MainWindow.xaml` markup by moving app-mixer rows and channel strips into
+  named data templates, and extracted the master strip into `MasterStripControl`.
+
+## 0.7.8 - 2026-07-09
+
+### Changed
+- Split the large application resource dictionary into `Resources/Tokens.xaml`,
+  `Resources/StripStyles.xaml`, and `Resources/AppMixerStyles.xaml`, keeping
+  existing resource keys and merged-dictionary order.
+
+## 0.7.7 - 2026-07-09
+
+### Changed
+- Extracted main-window tray/taskbar synchronization, app-panel animation,
+  app-row drag reordering, channel drag reordering, and shared rename text-box
+  behavior into focused UI helpers.
+
+## 0.7.6 - 2026-07-09
+
+### Changed
+- Extracted channel activation, activation-failure status mapping, failed-output
+  cleanup, and auto-reactivation retry budgeting from `ChannelViewModel` into
+  focused helpers.
+
+### Added
+- Added tests for channel activation status mapping and retry-budget behavior.
+
+## 0.7.5 - 2026-07-09
+
+### Changed
+- Extracted source selection, device-list refresh, fallback recovery, and
+  sleep/resume restart handling from `MixerViewModel` into
+  `MixerSourceRecoveryViewModel`.
+
+## 0.7.4 - 2026-07-09
+
+### Changed
+- Extracted master-strip rename and source endpoint volume/mute state from
+  `MixerViewModel` into `MixerMasterViewModel`, with the main window binding to
+  `Master.*`.
+
+## 0.7.3 - 2026-07-09
+
+### Changed
+- Extracted curated output-channel collection, add/remove/reorder, and
+  tray-focus selection from `MixerViewModel` into
+  `MixerChannelCollectionViewModel` while preserving the existing root bindings.
+
+## 0.7.2 - 2026-07-09
+
+### Changed
+- Extracted tray and startup option coordination from `MixerViewModel` into
+  `MixerTrayOptionsViewModel`, keeping persistence and startup registration
+  behavior unchanged.
+
+### Added
+- Added tests for tray option persistence and Run-with-Windows synchronization.
+
+## 0.7.1 - 2026-07-09
+
+### Changed
+- Extracted the pure settings projection from `MixerViewModel.Save()` into
+  `MixerSettingsProjection`, leaving save timing and file I/O behavior unchanged.
+
+### Added
+- Added a focused test for settings projection so future root view-model
+  decomposition can keep persisted fields stable.
+
+## 0.7.0 - 2026-07-09
+
+### Added
+- Added `AppMixerLayout`, a pure app-mixer ordering helper with tests for pinning,
+  drag moves, saved-order replay and absent-row persistence.
+
+### Changed
+- `AppMixerViewModel` now delegates row ordering and persisted layout projection
+  to `AppMixerLayout`, completing the CP2 safety-net test checkpoint.
+
+## 0.6.9 - 2026-07-09
+
+### Changed
+- Extracted mixer notification bubble state into `MixerStatusViewModel` and bound
+  the main window status toast to that focused view-model.
+- Added tests for status message/severity behavior.
+
+## 0.6.8 - 2026-07-09
+
+### Added
+- Added `tests/AudioHQ.Tests`, an xUnit safety-net project covering EQ settings,
+  EQ view-model normalization/reset behavior and settings serialization.
+
+### Changed
+- Documented the test project in README and architecture docs, and marked CP2
+  as partially complete in `docs/REFACTOR_PLAN.md`.
+
+## 0.6.7 - 2026-07-09
+
+### Fixed
+- Completed the CP1 documentation baseline by normalizing README and architecture
+  diagrams to plain ASCII.
+- Corrected the versioning comment in `Directory.Build.props` so it matches the
+  project rule for automatic patch-to-minor rollover.
+- Marked CP1 complete in `docs/REFACTOR_PLAN.md`.
+
+## 0.6.6 - 2026-07-09
+
+### Added
+- Added `docs/REFACTOR_PLAN.md` with a technical audit, checkpointed refactor
+  plan, per-checkpoint progress percentages and known documentation risks.
+
+### Fixed
+- Updated the README app-mixer feature text so it no longer mentions the removed
+  refresh button or window-focus refresh path.
+- Corrected the architecture document's known-limitations section to reflect
+  that mixer state is now persisted across runs.
+
+## 0.6.5 - 2026-07-09
+
+### Changed
+- App mixer now refreshes its app-session list automatically while the panel is
+  open, so newly playing apps appear without the manual refresh button.
+- Replaced the app mixer refresh icon with a `MIXER` header above the app rows.
+
+## 0.6.4 - 2026-07-09
+
+### Fixed
+- Collapsed app mixer rail keeps the small left inset to the master strip via
+  the shared `MainContentMargin` resource instead of a literal panel margin.
+
+## 0.6.3 - 2026-07-09
+
+### Fixed
+- Collapsed app mixer rail now has the same 6px gap to the master strip as it
+  has to the window edge, removing the extra main-content left inset.
+
+## 0.6.2 - 2026-07-09
+
+### Fixed
+- Collapsed app mixer rail no longer keeps the hidden panel's left margin, so
+  the chevron button has matching spacing on both sides.
+
 ## 0.6.1 - 2026-07-09
 
 ### Fixed

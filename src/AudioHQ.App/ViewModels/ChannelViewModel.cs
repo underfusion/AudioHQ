@@ -1,8 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Windows;
 using AudioHQ.Core;
-using NAudio.CoreAudioApi;
 
 namespace AudioHQ.App.ViewModels;
 
@@ -15,20 +13,16 @@ namespace AudioHQ.App.ViewModels;
 /// </summary>
 public sealed class ChannelViewModel : ViewModelBase
 {
-    /// <summary>Consecutive failed auto-reactivations before the watchdog gives up on the
-    /// device (until it disappears and reappears, or a resume resets the budget).</summary>
-    private const int MaxAutoRetries = 3;
-
     private readonly MirrorEngine _engine;
-    private readonly Func<int> _latencyMs;
     private readonly Action _onChanged;
     private readonly EqViewModel _eq;
     private readonly EqPresetStore _presets;
+    private readonly ChannelActivationService _activation;
+    private readonly ChannelRetryBudget _retryBudget = new();
     private OutputChannel? _channel;
 
     private bool _isActive;
     private bool _wantsActive;
-    private int _autoRetriesLeft = MaxAutoRetries;
     private bool _isPresent;
     private bool _isMuted;
     private double _gain;
@@ -48,9 +42,9 @@ public sealed class ChannelViewModel : ViewModelBase
         _engine = engine;
         DeviceId = deviceId;
         _isPresent = present;
-        _latencyMs = latencyMs;
         _onChanged = onChanged;
         _presets = presets;
+        _activation = new ChannelActivationService(engine, deviceId, latencyMs);
         _gain = gain;
         _name = string.IsNullOrWhiteSpace(name) ? "Channel" : name;
         _eq = new EqViewModel(eq, ApplyEq);
@@ -151,7 +145,7 @@ public sealed class ChannelViewModel : ViewModelBase
             // This setter is the USER path (toggle in the UI, or the mixer acting for the
             // user): it updates the intent. Mechanical stops go through Suspend().
             _wantsActive = value;
-            _autoRetriesLeft = MaxAutoRetries;
+            _retryBudget.Reset();
 
             if (value)
             {
@@ -210,59 +204,20 @@ public sealed class ChannelViewModel : ViewModelBase
     /// <summary>Open a live output on a FRESH device instance. Sets _isActive on success.</summary>
     private void Activate()
     {
-        OutputChannel? channel = null;
-        MMDevice? device = null;
-        try
+        var result = _activation.Activate(Name, _gain, _isMuted, _eq.ToSettings(), OnPlaybackStopped);
+        if (result.DeviceMissing)
         {
-            device = AudioDevices.FindRenderById(DeviceId);
-            if (device is null)
-            {
-                SetPresent(false);
-                return;
-            }
+            SetPresent(false);
+            return;
+        }
 
-            channel = _engine.AddOutput(device, _latencyMs());
-            channel.Gain = (float)_gain;
-            channel.Muted = _isMuted;
-            channel.Equalizer.Configure(_eq.ToSettings());
-            channel.PlaybackStopped += OnPlaybackStopped;
-            _channel = channel;
-            _isActive = true;
-            _autoRetriesLeft = MaxAutoRetries;
-            Status = "";
-        }
-        catch (COMException ex)
+        _channel = result.Channel;
+        _isActive = result.IsActive;
+        Status = result.Status;
+        if (_isActive)
         {
-            Log.Write($"Activate '{Name}' FAILED: {ex}");
-            Status = (uint)ex.HResult switch
-            {
-                0x8889000A => "In use (exclusive)",
-                0x88890008 => "Format not supported",
-                0x88890004 => "Device unavailable",
-                _ => $"Error 0x{ex.HResult:X8}",
-            };
-            CleanUpFailedActivation(channel, device);
+            _retryBudget.Reset();
         }
-        catch (InvalidOperationException ex)
-        {
-            Log.Write($"Activate '{Name}' FAILED: {ex}");
-            Status = "Source not capturing";
-            CleanUpFailedActivation(channel, device);
-        }
-        catch (Exception ex)
-        {
-            Log.Write($"Activate '{Name}' FAILED: {ex}");
-            Status = ex.Message.Length > 80 ? ex.Message[..80] : ex.Message;
-            CleanUpFailedActivation(channel, device);
-        }
-    }
-
-    private void CleanUpFailedActivation(OutputChannel? channel, MMDevice? device)
-    {
-        _isActive = false;
-        if (channel is not null) _engine.RemoveOutput(channel);   // disposes the device too
-        else device?.Dispose();
-        _channel = null;
     }
 
     /// <summary>Close the live output (if any) without touching intent or the toggle state.</summary>
@@ -295,11 +250,7 @@ public sealed class ChannelViewModel : ViewModelBase
     public void TryAutoReactivate(bool force = false)
     {
         if (_isActive || !_wantsActive || !IsAvailable) return;
-        if (!force)
-        {
-            if (_autoRetriesLeft <= 0) return;
-            _autoRetriesLeft--;
-        }
+        if (!_retryBudget.TryConsume(force)) return;
 
         Activate();
         if (_isActive)
@@ -310,7 +261,7 @@ public sealed class ChannelViewModel : ViewModelBase
     }
 
     /// <summary>Give a failing device a fresh retry budget (called on resume).</summary>
-    public void ResetAutoRetry() => _autoRetriesLeft = MaxAutoRetries;
+    public void ResetAutoRetry() => _retryBudget.Reset();
 
     /// <summary>Engine callback (render thread) for an unsolicited output stop.</summary>
     private void OnPlaybackStopped(OutputChannel channel, Exception? error)
@@ -340,7 +291,7 @@ public sealed class ChannelViewModel : ViewModelBase
         _isPresent = present;
         OnPropertyChanged(nameof(IsAvailable));
         if (!present) Suspend();               // keep the ON intent - it comes back with the device
-        else _autoRetriesLeft = MaxAutoRetries; // fresh device, fresh retry budget
+        else _retryBudget.Reset();             // fresh device, fresh retry budget
         RefreshUnavailableStatus();
     }
 

@@ -1,0 +1,38 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:AudioHQ.App"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+        <local:GainToBrushConverter x:Key="GainToBrush" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Spacing tokens: S=6 half, M=12 normal, L=24 double -->
+        <sys:Double x:Key="SpacingS">6</sys:Double>
+        <sys:Double x:Key="SpacingM">12</sys:Double>
+        <sys:Double x:Key="SpacingL">24</sys:Double>
+        <Thickness x:Key="AppMixerRegionMargin">6,12,0,12</Thickness>
+        <Thickness x:Key="AppMixerPanelClosedMargin">0</Thickness>
+        <Thickness x:Key="AppMixerPanelOpenMargin">6,0,6,0</Thickness>
+        <Thickness x:Key="AppMixerContentMargin">12,12,6,12</Thickness>
+        <Thickness x:Key="AppMixerRowPadding">6</Thickness>
+        <Thickness x:Key="AppMixerStackGap">0,0,0,6</Thickness>
+        <Thickness x:Key="AppMixerScrollBarMargin">6,0,0,0</Thickness>
+        <sys:Double x:Key="AppMixerContentWidth">226</sys:Double>
+        <sys:Double x:Key="AppMixerPanelWidth">244</sys:Double>
+        <Thickness x:Key="MainContentMargin">6,12,12,12</Thickness>
+
+        <SolidColorBrush x:Key="BgBrush" Color="#FF161A22" />
+        <SolidColorBrush x:Key="CardBrush" Color="#FF222834" />
+        <SolidColorBrush x:Key="MasterCardBrush" Color="#FF2A3550" />
+        <SolidColorBrush x:Key="MasterBorderBrush" Color="#FF4A557A" />
+        <SolidColorBrush x:Key="TextBrush" Color="#FFE2E7F0" />
+        <SolidColorBrush x:Key="DimTextBrush" Color="#FF8B93A5" />
+        <SolidColorBrush x:Key="ButtonBrush" Color="#FF2D3545" />
+        <SolidColorBrush x:Key="AccentGreen" Color="#FF22C55E" />
+        <SolidColorBrush x:Key="AccentRed" Color="#FFEF4444" />
+        <SolidColorBrush x:Key="AccentBlue" Color="#FF3B82F6" />
+
+        <!-- Notification bubble fills: a faint tint of the accent so the frame reads as a
+             toast (info = blue, error = red) rather than as loose coloured text. -->
+        <SolidColorBrush x:Key="InfoBubbleBrush" Color="#FF1C2A40" />
+        <SolidColorBrush x:Key="ErrorBubbleBrush" Color="#FF35222A" />
+</ResourceDictionary>

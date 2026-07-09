@@ -1,4 +1,4 @@
-# AudioHQ
+﻿# AudioHQ
 
 A small Windows audio mirror and mixer. Pick one output device as the source,
 and AudioHQ captures everything playing on it (WASAPI loopback) and mirrors that
@@ -29,8 +29,8 @@ Windows lets you play to one output device at a time. AudioHQ removes that limit
 - **Master strip.** Controls the Windows volume of the *source* device directly.
 - **Per-app mixer (slide-out).** A left panel that lists the apps currently playing
   on the default output - the Windows volume mixer, in app - each with its own
-  volume slider and mute. Open it from the chevron rail; it refreshes when shown,
-  when the window comes to the front, and from a refresh button.
+  volume slider and mute. Open it from the chevron rail; it refreshes
+  automatically while the panel is open.
 - **Adaptive drift compensation.** Independent device clocks normally let the delay
   slowly creep until an audible re-sync jump. AudioHQ continuously nudges each
   output's resample ratio (by a fraction of a percent - inaudible) to hold the
@@ -56,6 +56,7 @@ Windows lets you play to one output device at a time. AudioHQ removes that limit
 ```
 start.bat                              # kill running app, build, launch the GUI (daily driver)
 dotnet build AudioHQ.sln               # build everything
+dotnet test AudioHQ.sln                # run safety-net tests
 dotnet run --project src/AudioHQ.Cli   # console tester: mirror to a single device
 ```
 
@@ -73,9 +74,9 @@ needed) and zips it:
 
 ```
 release/
-└─ AudioHQ-<version>-win-x64-portable.zip
-   └─ AudioHQ-<version>-win-x64/
-      └─ AudioHQ.exe          one file (~70 MB, runtime + icon embedded)
+`-- AudioHQ-<version>-win-x64-portable.zip
+    `-- AudioHQ-<version>-win-x64/
+        `-- AudioHQ.exe          one file (~70 MB, runtime + icon embedded)
 ```
 
 On first run the app creates its files **next to the exe** - it is fully portable
@@ -83,9 +84,9 @@ and keeps nothing in `%AppData%`:
 
 ```
 AudioHQ-<version>-win-x64/
-├─ AudioHQ.exe
-├─ settings.json     source, channels, gains and options
-└─ audiohq.log       runtime log
+|-- AudioHQ.exe
+|-- settings.json     source, channels, gains and options
+`-- audiohq.log       runtime log
 ```
 
 Unzip into a user-writable folder (Desktop, Documents, a USB drive), not
@@ -111,8 +112,9 @@ flow, threading model and error handling.
 
 ```
 src/AudioHQ.Core   audio engine (NAudio): capture, fan-out, per-channel gain, drift compensation
-src/AudioHQ.App    WPF GUI (MVVM): mixer window, strips, tray, options
+src/AudioHQ.App    WPF GUI (MVVM): mixer window, strips, tray, status, options
 src/AudioHQ.Cli    console tester for the engine
+tests/AudioHQ.Tests focused xUnit safety-net tests for pure logic and persisted models
 docs/              technical documentation and the screenshot
 tools/             helper scripts (icon generator, screenshot capture)
 ```

@@ -120,7 +120,7 @@ public sealed class AppSession
     // Drop resource-string DisplayNames (e.g. "@%SystemRoot%\System32\...,-1") and blanks.
     private static string? Clean(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.StartsWith("@")) return null;
+        if (string.IsNullOrWhiteSpace(value) || value.StartsWith("@", StringComparison.Ordinal)) return null;
         return value.Trim();
     }
 

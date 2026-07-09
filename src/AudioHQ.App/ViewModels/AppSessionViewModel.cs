@@ -9,7 +9,7 @@ namespace AudioHQ.App.ViewModels;
 /// volume + mute. Backed by a live <see cref="AppSession"/> that the mixer swaps in on each
 /// refresh (<see cref="Update"/>), so writes always reach the current session object.
 /// </summary>
-public sealed class AppSessionViewModel : ViewModelBase
+public sealed class AppSessionViewModel : ViewModelBase, IAppMixerRow
 {
     private AppSession _session;
     private bool _isPinned;

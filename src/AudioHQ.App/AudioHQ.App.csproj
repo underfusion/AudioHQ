@@ -16,6 +16,7 @@
     <AssemblyName>AudioHQ</AssemblyName>
     <TargetFramework>net7.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CA1001</NoWarn>
     <UseWPF>true</UseWPF>
     <!-- WinForms is enabled only for System.Windows.Forms.NotifyIcon (tray). -->
     <UseWindowsForms>true</UseWindowsForms>
