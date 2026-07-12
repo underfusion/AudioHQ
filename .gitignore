@@ -27,6 +27,12 @@ obj/
 *.user
 *.suo
 
+# Test output (test source under tests/ stays tracked)
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
 # Environment & secrets
 .env
 .env.*
@@ -63,8 +69,18 @@ desktop.ini
 coverage/
 *.pid
 
-# Claude Code GUI / local agent files
+# Local assistant/editor workspaces and instructions
 .claude-gui-temp/
-.claude/settings.local.json
-# Internal AI-agent instructions - kept out of the public repo
+.claude/
+.codex/
+.agents/
+.cursor/
+.continue/
+.windsurf/
+.aider*
 CLAUDE.md
+**/CLAUDE.md
+AGENTS.md
+**/AGENTS.md
+docs/memory/
+.github/copilot-instructions.md
