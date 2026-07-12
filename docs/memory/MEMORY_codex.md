@@ -1,0 +1,1 @@
+AudioHQ versioning convention: always bump the app version for every edit batch. Use 100 patch releases per minor: 0.5.0 through 0.5.99, then 0.6.0, continuing the same pattern.
