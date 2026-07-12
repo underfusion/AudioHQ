@@ -18,6 +18,10 @@ namespace AudioHQ.App;
 public partial class EqWindow : Window
 {
     private EqViewModel? _eq;
+    private EqPreset? _activePreset;
+    private bool _isPresetDirty;
+    private bool _syncingPresetSelection;
+    private bool _loadingPreset;
     private const double MinDb = -36.0, MaxDb = 12.0;
 
     public EqWindow()
@@ -32,6 +36,7 @@ public partial class EqWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         if (_eq is null) return;
+        _eq.PropertyChanged -= Eq_PropertyChanged;
         _eq.Bands.CollectionChanged -= Bands_CollectionChanged;
         foreach (var band in _eq.Bands)
             band.PropertyChanged -= Band_PropertyChanged;
@@ -42,6 +47,7 @@ public partial class EqWindow : Window
     {
         if (DataContext is not ChannelViewModel channel) return;
         _eq = channel.Eq;
+        _eq.PropertyChanged += Eq_PropertyChanged;
         _eq.Bands.CollectionChanged += Bands_CollectionChanged;
         HookBands();
         CurveCanvas.SizeChanged += (_, _) => RedrawCurve();
@@ -76,33 +82,89 @@ public partial class EqWindow : Window
         }
     }
 
+    private void Eq_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(EqViewModel.Enabled)
+            or nameof(EqViewModel.LowPassEnabled)
+            or nameof(EqViewModel.LowPassHz)
+            or nameof(EqViewModel.LowPassSlope))
+            SyncPresetSelection();
+    }
+
     // --- Preset reconciliation -------------------------------------------------
 
     /// <summary>
-    /// Select the preset whose curve matches the live one, or - if none does - show
-    /// "Custom (not saved)". Driven by the current curve, so it survives reopening the editor.
+    /// Keep one active preset as the reset/overwrite baseline. Edits retain that selection
+    /// and display "Preset name (not saved)" instead of replacing it with anonymous Custom.
     /// </summary>
     private void SyncPresetSelection()
     {
         if (DataContext is not ChannelViewModel channel) return;
         var current = channel.Eq.ToSettings();
-        var match = channel.EqPresets.Presets.FirstOrDefault(p => CurveEquals(p.Eq, current));
-        PresetCombo.SelectedItem = match; // null -> the custom label shows through
-        UpdateCustomLabel();
+        if (_loadingPreset) return;
+
+        if (_activePreset is null || !channel.EqPresets.Presets.Contains(_activePreset))
+            _activePreset = channel.EqPresets.Presets.FirstOrDefault(p => CurveEquals(p.Eq, current));
+
+        _isPresetDirty = _activePreset is not null && !CurveEquals(_activePreset.Eq, current);
+        _syncingPresetSelection = true;
+        PresetCombo.SelectedItem = _activePreset;
+        _syncingPresetSelection = false;
+        UpdatePresetPresentation();
     }
 
-    private void PresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateCustomLabel();
-
-    private void UpdateCustomLabel()
+    private void PresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CustomLabel is not null)
-            CustomLabel.Visibility = PresetCombo.SelectedItem is null ? Visibility.Visible : Visibility.Collapsed;
+        if (_syncingPresetSelection) return;
+        if (DataContext is not ChannelViewModel channel || PresetCombo.SelectedItem is not EqPreset preset)
+            return;
+
+        _activePreset = preset;
+        _isPresetDirty = false;
+        _loadingPreset = true;
+        channel.Eq.Load(preset.Eq);
+        _loadingPreset = false;
+        SyncPresetSelection();
+        RedrawLater();
     }
 
-    /// <summary>True when two curves are the same shape (band count, gains and effective Q),
-    /// ignoring the on/off flag - flipping Enable should not change which preset is shown.</summary>
+    private void UpdatePresetPresentation()
+    {
+        if (PresetStatusLabel is not null)
+        {
+            PresetStatusLabel.Text = _activePreset is null
+                ? "Custom (not saved)"
+                : $"{_activePreset.Name} (not saved)";
+            PresetStatusLabel.Visibility = _activePreset is null || _isPresetDirty
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        if (ResetPresetButton is not null)
+            ResetPresetButton.IsEnabled = _activePreset is not null && _isPresetDirty;
+        if (DeletePresetButton is not null)
+            DeletePresetButton.IsEnabled = _activePreset is not null && !EqPresetStore.IsDefault(_activePreset);
+        UpdatePresetSaveAction();
+    }
+
+    private void PresetName_TextChanged(object sender, TextChangedEventArgs e) => UpdatePresetSaveAction();
+
+    private void UpdatePresetSaveAction()
+    {
+        if (SavePresetButton is null || PresetName is null) return;
+        bool willOverwrite = CanOverwriteSelectedPreset();
+        SavePresetButton.Content = willOverwrite ? "Overwrite preset" : "Save preset";
+    }
+
+    private bool CanOverwriteSelectedPreset() =>
+        string.IsNullOrWhiteSpace(PresetName.Text) &&
+        _isPresetDirty &&
+        _activePreset is not null &&
+        !EqPresetStore.IsDefault(_activePreset);
+
+    /// <summary>True when two complete preset states match.</summary>
     private static bool CurveEquals(EqSettings a, EqSettings b)
     {
+        if (a.Enabled != b.Enabled) return false;
         int bands = a.Bands == 6 ? 6 : 3;
         if (bands != (b.Bands == 6 ? 6 : 3)) return false;
         double defaultQ = EqBands.Q(bands);
@@ -224,30 +286,39 @@ public partial class EqWindow : Window
     private void SavePreset_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ChannelViewModel channel) return;
-        var saved = channel.EqPresets.Save(PresetName.Text, channel.Eq.ToSettings());
+        string typedName = PresetName.Text.Trim();
+        string targetName = typedName.Length > 0
+            ? typedName
+            : CanOverwriteSelectedPreset() ? _activePreset!.Name : "";
+        var saved = channel.EqPresets.Save(targetName, channel.Eq.ToSettings());
         if (saved is null) return;
+        _activePreset = saved;
+        _isPresetDirty = false;
         PresetName.Clear();
+        _syncingPresetSelection = true;
         PresetCombo.SelectedItem = saved;
-        UpdateCustomLabel();
-    }
-
-    private void LoadPreset_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is ChannelViewModel channel && PresetCombo.SelectedItem is EqPreset preset)
-            channel.Eq.Load(preset.Eq);
+        _syncingPresetSelection = false;
+        UpdatePresetPresentation();
     }
 
     private void DeletePreset_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is ChannelViewModel channel && PresetCombo.SelectedItem is EqPreset preset)
+        if (DataContext is ChannelViewModel channel && _activePreset is { } preset)
+        {
             channel.EqPresets.Delete(preset);
+            _activePreset = null;
+            SyncPresetSelection();
+        }
     }
 
-    private void Reset_Click(object sender, RoutedEventArgs e)
+    private void ResetPreset_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not ChannelViewModel channel) return;
-        channel.Eq.Reset();
-        SyncPresetSelection(); // a flat curve is the Default preset
+        if (DataContext is not ChannelViewModel channel || _activePreset is null || !_isPresetDirty) return;
+        _loadingPreset = true;
+        channel.Eq.Load(_activePreset.Eq);
+        _loadingPreset = false;
+        SyncPresetSelection();
+        RedrawLater();
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

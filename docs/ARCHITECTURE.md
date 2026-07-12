@@ -296,6 +296,32 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
   and keeps entries even while apps are absent so pin/order state comes back when a new
   session appears. `FluidMoveBehavior` (Microsoft.Xaml.Behaviors.Wpf) on the items
   `StackPanel` animates rows sliding to their new position on any reorder.
+- **Docking.** The mixer header can move the existing `AppPanel` between the main
+  window and a borderless `AppMixerWindow`, so both modes share the same view model,
+  rows, drag behavior and scroll state. The detached host follows the main window's
+  left edge with the same 8 px child-window gap used by EQ placement. Its height follows
+  the visible app rows up to the available work-area height. It opens fully expanded by
+  default for up to 10 apps (and no farther than the work area); a centered bottom handle
+  can shorten it.
+  It derives the limit from the live app count and the actual rendered row height, avoiding WPF's
+  constrained scroll-viewport measurement. A user drag can shorten it. The detached
+  host uses the same native draggable caption as the other app windows;
+  its X button hides rather than destroys it. Dock state persists in `MixerSettings`;
+  the main window's left rail hides or shows the detached host and keeps the mixer
+  refresh state synchronized with its visibility. Attach restores the embedded panel
+  fully expanded. Its matched dock-action glyphs use a dim left-pointing Detach icon
+  and a bright right-pointing Attach icon.
+- **Main-window placement.** First launch uses WPF's centered-screen placement. Later
+  launches restore the last normal `Left`/`Top` stored in `MixerSettings`, provided the
+  point still intersects the current virtual desktop; invalid coordinates fall back to center.
+  `WindowPlacement.FollowOwner` keeps modeless EQ and Options windows at their current
+  offsets when the main window moves; manually moving a child updates that offset.
+- **EQ preset actions.** `EqWindow` retains the last selected non-Default preset when
+  its curve is edited, displaying `Name (not saved)` over the combo. Combo selection loads
+  immediately. Reset enables only for unsaved changes and reloads the active preset,
+  including Default. With an empty new-name field the green save action overwrites a
+  modified non-Default preset; typing a name switches it to save a named preset. Default
+  remains read-only, and the destructive Delete action is styled red.
 
 ### Tray & startup (AudioHQ.App)
 
@@ -304,7 +330,11 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
   single-file build needs no loose icon). It provides a Show/Exit menu,
   restore-on-double-click, and reads `MixerViewModel.TrayOptions.MinimizeToTray` /
   `TrayOptions.CloseToTray` live so the behaviour follows the Options toggles without a
-  restart. `MainWindow.OnClosing` defers to it for close-to-tray.
+  restart. `MainWindow.OnClosing` defers to it for close-to-tray. Options and EQ are
+  owned modeless windows. Hiding to tray snapshots and hides the entire visible owned
+  window set; restore shows that exact set and returns its previous active window.
+  `Application.ShutdownMode=OnMainWindowClose` guarantees a real main-window close
+  terminates the app and all owned windows regardless of which dialogs are open.
 - `MainWindowTraySync` subscribes to mixer/channel property changes and keeps the
   tray tooltip, focused-channel tray overlay and WPF taskbar icon overlay in sync.
   `WindowIconFactory` creates the base and focused taskbar `BitmapSource` variants.

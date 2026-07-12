@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -24,6 +26,8 @@ public sealed class TrayController : IDisposable
     private readonly Icon _baseIcon;
     private Icon? _overlayIcon;
     private bool _exiting;
+    private List<Window> _visibleOwnedWindows = new();
+    private Window? _activeWindowBeforeHide;
 
     public TrayController(Window window, Func<bool> minimizeToTray, Func<bool> closeToTray,
         Action? onMiddleClick = null)
@@ -143,7 +147,7 @@ public sealed class TrayController : IDisposable
     {
         if (_window.WindowState == WindowState.Minimized && _minimizeToTray())
         {
-            _window.Hide();           // drop the taskbar button; live in the tray only
+            HideWindowSet();          // drop the full owned window set from the desktop
             Log.Write("Tray: minimized to tray");
         }
     }
@@ -157,7 +161,7 @@ public sealed class TrayController : IDisposable
     {
         if (_exiting || !_closeToTray()) return false;
         e.Cancel = true;
-        _window.Hide();
+        HideWindowSet();
         Log.Write("Tray: close-to-tray, hidden");
         return true;
     }
@@ -167,7 +171,7 @@ public sealed class TrayController : IDisposable
     {
         if (_window.IsVisible && _window.WindowState != WindowState.Minimized)
         {
-            _window.Hide();
+            HideWindowSet();
             Log.Write("Tray: toggled to tray");
         }
         else
@@ -180,12 +184,38 @@ public sealed class TrayController : IDisposable
     {
         _window.Show();
         _window.WindowState = WindowState.Normal;
-        _window.Activate();
+        foreach (var owned in _visibleOwnedWindows.ToArray())
+        {
+            try
+            {
+                if (owned.Owner == _window && !owned.IsVisible) owned.Show();
+            }
+            catch (InvalidOperationException ex)
+            {
+                Log.Write($"Tray: skipped closed owned window '{owned.Title}': {ex.Message}");
+            }
+        }
+
+        var activate = _activeWindowBeforeHide;
+        if (activate is not null && activate.IsVisible) activate.Activate();
+        else _window.Activate();
+        _visibleOwnedWindows.Clear();
+        _activeWindowBeforeHide = null;
+    }
+
+    private void HideWindowSet()
+    {
+        var owned = _window.OwnedWindows.Cast<Window>().Where(w => w.IsVisible).ToList();
+        _visibleOwnedWindows = owned;
+        _activeWindowBeforeHide = owned.FirstOrDefault(w => w.IsActive) ?? _window;
+        foreach (var child in owned) child.Hide();
+        _window.Hide();
     }
 
     private void Exit()
     {
         _exiting = true;
+        _visibleOwnedWindows.Clear();
         _window.Close();
     }
 

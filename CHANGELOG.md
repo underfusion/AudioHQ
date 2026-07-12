@@ -3,6 +3,150 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.5.3 - 2026-07-12
+
+### Changed
+- Channel strip area now scrolls horizontally when more than 12 strips are added;
+  the window auto-grows to show up to 12 output channels at once without a scrollbar.
+
+## 0.5.2 - 2026-07-12
+
+### Changed
+- Owned EQ and Options windows now follow the main window at their current relative
+  offsets, making the visible AudioHQ windows move as one group. Manually repositioning
+  a child establishes its new offset for later main-window movement.
+
+## 0.5.1 - 2026-07-12
+
+### Changed
+- Main-window close now owns the whole application lifetime: with close-to-tray off,
+  closing it exits all owned windows; with tray behavior enabled, the main window and
+  every visible Options, EQ, and detached mixer window hide as one set.
+- Restoring from the tray reopens exactly the owned windows that were visible before
+  hiding and returns focus to the previously active window. Options and EQ are now
+  reusable owned modeless windows instead of blocking modal dialogs.
+
+## 0.5.0 - 2026-07-12
+
+### Changed
+- Reset the requested application version line to 0.5.0.
+- Changed the mandatory version cadence to 100 patch releases per minor:
+  `0.5.0` through `0.5.99`, followed by `0.6.0`.
+
+## 0.10.0 - 2026-07-12
+
+### Changed
+- EQ preset selection now loads immediately without a separate Load action.
+- Modified presets retain their original selection and display `Name (not saved)`.
+- Replaced Load with a Reset action that enables only for unsaved edits and restores
+  the active preset's saved values, including the built-in Default. Removed the
+  redundant bottom Reset button. Enable EQ is included in dirty-state detection.
+
+## 0.9.9 - 2026-07-12
+
+### Changed
+- EQ preset save action now becomes `Overwrite preset` when editing a selected
+  non-Default preset with an empty name field, and returns to `Save preset` when
+  a new name is entered. The action is green and Delete is red.
+
+## 0.9.8 - 2026-07-12
+
+### Changed
+- Reversed both mixer dock-action arrows: Detach now points left and Attach points right.
+
+## 0.9.7 - 2026-07-12
+
+### Changed
+- Replaced the mixer dock glyphs with a matched custom pair: Detach is a dim
+  outlined panel with an outward right arrow; Attach is a bright filled panel
+  with an inward left arrow.
+
+## 0.9.6 - 2026-07-12
+
+### Changed
+- Attaching the floating mixer now restores it immediately as a fully expanded
+  docked panel instead of returning it collapsed.
+- Replaced the custom attach/detach paths with the standard Windows Segoe Fluent
+  `DockLeft` and `NewWindow` glyphs.
+
+## 0.9.5 - 2026-07-12
+
+### Changed
+- Detached mixer now uses the same native draggable title bar as AudioHQ, Options,
+  and EQ, titled `AudioHQ - Mixer`. Its X button hides the mixer so the main chevron
+  can show it again, while attach and application shutdown close the host permanently.
+
+## 0.9.4 - 2026-07-12
+
+### Changed
+- The main window's mixer chevron now hides and shows the floating mixer while it
+  remains detached. Hiding pauses app-session refresh; showing refreshes and focuses it.
+
+## 0.9.3 - 2026-07-12
+
+### Changed
+- Reduced the detached mixer's no-scroll maximum from 12 to 10 app rows.
+- Maximum height now uses each row's actual rendered height when available, removing
+  the cumulative empty gap below the last app while retaining the handle inset.
+
+## 0.9.1 - 2026-07-12
+
+### Fixed
+- Detached mixer now opens fully expanded by default for all current apps, capped
+  at 12 visible rows and the available screen height. A shorter height is retained
+  only after the user deliberately drags the resize handle upward.
+
+## 0.9.0 - 2026-07-12
+
+### Fixed
+- The detached mixer now sums every generated app-row container when calculating
+  its maximum height, avoiding the scroll viewer's constrained viewport measurement
+  that incorrectly limited the panel to approximately one visible row.
+
+## 0.8.9 - 2026-07-12
+
+### Fixed
+- The detached mixer's maximum height now uses the app rows' measured rendered
+  height instead of a fixed estimate, preventing an unnecessary scrollbar when
+  the panel is fully expanded and the screen has enough room.
+
+## 0.8.8 - 2026-07-12
+
+### Fixed
+- Centered the main window on first launch and restored its last valid normal
+  position on later launches, with virtual-desktop bounds validation.
+- Fixed the detached mixer's initial natural height so all current app rows are
+  visible up to the screen limit, and made its resize indicator thinner.
+
+## 0.8.7 - 2026-07-12
+
+### Added
+- Added a centered bottom resize handle to the detached mixer. It can shorten the
+  panel or restore it up to the exact height needed for all visible app rows, but
+  cannot create empty space below them.
+
+## 0.8.6 - 2026-07-12
+
+### Changed
+- Detached mixer height now follows its visible app rows, capped by the available
+  work area, instead of using a manually resized persisted height.
+- Doubled the app mixer's right content inset to 12 px and removed the bottom
+  resize thumb that produced a white strip below the rounded panel.
+
+## 0.8.5 - 2026-07-12
+
+### Fixed
+- Kept the app mixer's view-model binding when moving the panel into its detached
+  window, so active application rows remain visible after detaching or restarting.
+
+## 0.8.4 - 2026-07-12
+
+### Added
+- Added a persistent dock/undock control to the app mixer. The detached mixer is
+  top-aligned to the left of the main window, opens at a taller default height,
+  and can be resized vertically from its bottom edge.
+- The collapsed mixer rail now reveals and focuses the detached mixer.
+
 ## 0.8.3 - 2026-07-09
 
 ### Changed

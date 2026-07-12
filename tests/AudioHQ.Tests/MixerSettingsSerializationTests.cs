@@ -17,6 +17,9 @@ public sealed class MixerSettingsSerializationTests
             CloseToTray = true,
             MinimizeToTray = true,
             RunWithWindows = true,
+            AppMixerDetached = true,
+            MainWindowLeft = 240,
+            MainWindowTop = 120,
             Channels =
             {
                 new ChannelDefinition
@@ -67,6 +70,9 @@ public sealed class MixerSettingsSerializationTests
         Assert.True(restored.CloseToTray);
         Assert.True(restored.MinimizeToTray);
         Assert.True(restored.RunWithWindows);
+        Assert.True(restored.AppMixerDetached);
+        Assert.Equal(240, restored.MainWindowLeft);
+        Assert.Equal(120, restored.MainWindowTop);
         Assert.Single(restored.Channels);
         Assert.Equal("Headphones", restored.Channels[0].Name);
         Assert.True(restored.Channels[0].Active);

@@ -12,11 +12,11 @@
         <Thickness x:Key="AppMixerRegionMargin">6,12,0,12</Thickness>
         <Thickness x:Key="AppMixerPanelClosedMargin">0</Thickness>
         <Thickness x:Key="AppMixerPanelOpenMargin">6,0,6,0</Thickness>
-        <Thickness x:Key="AppMixerContentMargin">12,12,6,12</Thickness>
+        <Thickness x:Key="AppMixerContentMargin">12</Thickness>
         <Thickness x:Key="AppMixerRowPadding">6</Thickness>
         <Thickness x:Key="AppMixerStackGap">0,0,0,6</Thickness>
         <Thickness x:Key="AppMixerScrollBarMargin">6,0,0,0</Thickness>
-        <sys:Double x:Key="AppMixerContentWidth">226</sys:Double>
+        <sys:Double x:Key="AppMixerContentWidth">220</sys:Double>
         <sys:Double x:Key="AppMixerPanelWidth">244</sys:Double>
         <Thickness x:Key="MainContentMargin">6,12,12,12</Thickness>
 

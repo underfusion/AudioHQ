@@ -42,6 +42,13 @@ public sealed class MixerSettings
     // pinned/order state comes back when the app creates a new audio session later.
     public List<AppMixerDefinition> AppMixerApps { get; set; } = new();
 
+    // The app mixer can live inside the main window or in its own panel beside it.
+    public bool AppMixerDetached { get; set; }
+
+    // Last normal main-window position. Null means first launch and uses CenterScreen.
+    public double? MainWindowLeft { get; set; }
+    public double? MainWindowTop { get; set; }
+
     // App-wide saved EQ presets (shared across channels).
     public List<EqPreset> EqPresets { get; set; } = new();
 

@@ -10,6 +10,7 @@
         Background="{StaticResource BgBrush}"
         SizeToContent="Width"
         Height="440"
+        WindowStartupLocation="CenterScreen"
         ResizeMode="CanMinimize">
     <Window.Resources>
         <DataTemplate x:Key="AppMixerRowTemplate">
@@ -225,15 +226,40 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="MIXER"
-                               Margin="{StaticResource AppMixerStackGap}"
-                               Foreground="{StaticResource TextBrush}" FontSize="11"
-                               FontWeight="SemiBold" />
+                    <Grid Grid.Row="0" Margin="{StaticResource AppMixerStackGap}">
+                        <TextBlock Text="MIXER" Foreground="{StaticResource TextBrush}" FontSize="11"
+                                   FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button x:Name="AppMixerDockButton" HorizontalAlignment="Right"
+                                Style="{StaticResource IconButton}" Width="22" Height="22"
+                                ToolTip="Detach mixer" Click="AppMixerDock_Click">
+                            <Grid Width="16" Height="14">
+                                <!-- Detach action: dim outlined panel with a left-pointing arrow. -->
+                                <Canvas x:Name="AppMixerDetachIcon" Width="16" Height="14" Opacity="0.7">
+                                    <Path Data="M2 1 H14 A1 1 0 0 1 15 2 V12 A1 1 0 0 1 14 13 H2 A1 1 0 0 1 1 12 V2 A1 1 0 0 1 2 1 Z M5 1 V13"
+                                          Stroke="{StaticResource DimTextBrush}" StrokeThickness="1.5"
+                                          StrokeLineJoin="Round" Fill="Transparent" />
+                                    <Path Data="M11 4 L8 7 L11 10" Stroke="{StaticResource DimTextBrush}"
+                                          StrokeThickness="2" StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                </Canvas>
+                                <!-- Attach action: bright filled panel with a right-pointing arrow. -->
+                                <Canvas x:Name="AppMixerAttachIcon" Width="16" Height="14" Visibility="Collapsed">
+                                    <Path Data="M2 1 H14 A1 1 0 0 1 15 2 V12 A1 1 0 0 1 14 13 H2 A1 1 0 0 1 1 12 V2 A1 1 0 0 1 2 1 Z"
+                                          Fill="{StaticResource TextBrush}" />
+                                    <Path Data="M5 1 V13" Stroke="{StaticResource CardBrush}" StrokeThickness="1.5" />
+                                    <Path Data="M8 4 L11 7 L8 10" Stroke="{StaticResource CardBrush}"
+                                          StrokeThickness="2" StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                </Canvas>
+                            </Grid>
+                        </Button>
+                    </Grid>
                     <!-- App rows: pin + drag-handle on the left, icon, name, vol%, mute. -->
                     <ScrollViewer Grid.Row="1" Style="{StaticResource AppScrollViewer}"
                                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <Grid>
-                            <ItemsControl ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppMixerRowTemplate}">
+                            <ItemsControl x:Name="AppMixerItems" ItemsSource="{Binding Apps}"
+                                          ItemTemplate="{StaticResource AppMixerRowTemplate}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <StackPanel>
@@ -317,25 +343,33 @@
             </Border>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal">
-            <local:MasterStripControl />
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <local:MasterStripControl Grid.Column="0" />
 
-            <!-- Output strips: curated, reorderable, renamable. -->
-            <ItemsControl ItemsSource="{Binding Channels}" ItemTemplate="{StaticResource ChannelStripTemplate}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-            </ItemsControl>
+            <!-- Output strips: scrolls horizontally beyond 12; window auto-grows up to 12. -->
+            <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          MaxWidth="1488">
+                <ItemsControl ItemsSource="{Binding Channels}" ItemTemplate="{StaticResource ChannelStripTemplate}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </ScrollViewer>
 
-            <!-- Add-channel placeholder: click to pick an unused device. -->
-            <Border Style="{StaticResource AddCard}">
+            <!-- Add-channel placeholder: always visible at the right edge. -->
+            <Border Grid.Column="2" Style="{StaticResource AddCard}">
                 <Button Style="{StaticResource IconButton}" Content="&#x2b;" FontSize="24"
                         VerticalAlignment="Center" ToolTip="Add channel"
                         Click="AddChannel_Click" />
             </Border>
-        </StackPanel>
+        </Grid>
         </DockPanel>
     </DockPanel>
 </Window>
