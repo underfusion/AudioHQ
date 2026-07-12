@@ -1,11 +1,10 @@
 using System;
-using System.Collections.Specialized;
-using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using AudioHQ.App.ViewModels;
 using AudioHQ.Core;
 
@@ -14,7 +13,11 @@ namespace AudioHQ.App;
 public partial class MainWindow : Window
 {
     private MixerViewModel? _viewModel;
-    private TrayController? _tray;
+    private AppMixerViewModel? _appMixer;
+    private MainWindowTraySync? _traySync;
+    private AppPanelAnimator? _appPanelAnimator;
+    private AppRowDragController? _appRowDrag;
+    private AppMixerWindow? _appMixerWindow;
 
     public MainWindow()
     {
@@ -26,21 +29,22 @@ public partial class MainWindow : Window
         {
             _viewModel = new MixerViewModel();
             DataContext = _viewModel;
-            _tray = new TrayController(this,
-                () => _viewModel.MinimizeToTray,
-                () => _viewModel.CloseToTray);
+            RestoreWindowPosition();
 
-            // Keep the tray hover text in sync with which outputs are ON/OFF.
-            _viewModel.Channels.CollectionChanged += Channels_CollectionChanged;
-            foreach (var channel in _viewModel.Channels)
-                channel.PropertyChanged += Channel_PropertyChanged;
-            RefreshTrayTooltip();
+            // Per-app mixer lives in its own view model, bound to the left panel only.
+            _appMixer = new AppMixerViewModel(_viewModel.Settings, _viewModel.SaveSettings);
+            AppMixerRegion.DataContext = _appMixer;
+            AppPanel.DataContext = _appMixer;
+            _appPanelAnimator = new AppPanelAnimator(this, AppPanel);
+            _appRowDrag = new AppRowDragController(AppPanel, () => _appMixer);
 
-            // Pin the master's green line and "100" label to the thumb centre at full scale, once
-            // the slider template has been realised (and on any resize).
-            Loaded += (_, _) => Dispatcher.BeginInvoke(
-                new Action(PositionMasterUnityLine), System.Windows.Threading.DispatcherPriority.Loaded);
-            MasterFader.SizeChanged += (_, _) => PositionMasterUnityLine();
+            Loaded += (_, _) =>
+            {
+                if (_viewModel.Settings.AppMixerDetached) DetachAppMixer();
+            };
+
+            _traySync = new MainWindowTraySync(this, _viewModel);
+
         }
         catch (Exception ex)
         {
@@ -50,74 +54,156 @@ public partial class MainWindow : Window
         }
     }
 
-    // --- Tray tooltip: live ON/OFF summary of the output channels ---------------
-
-    private void Channels_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.OldItems is not null)
-            foreach (ChannelViewModel c in e.OldItems) c.PropertyChanged -= Channel_PropertyChanged;
-        if (e.NewItems is not null)
-            foreach (ChannelViewModel c in e.NewItems) c.PropertyChanged += Channel_PropertyChanged;
-        RefreshTrayTooltip();
-    }
-
-    private void Channel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(ChannelViewModel.IsActive) or nameof(ChannelViewModel.Name))
-            RefreshTrayTooltip();
-    }
-
-    private void RefreshTrayTooltip()
-    {
-        if (_viewModel is null || _tray is null) return;
-        var on = _viewModel.Channels.Where(c => c.IsActive).Select(c => c.Name).ToList();
-        var off = _viewModel.Channels.Where(c => !c.IsActive).Select(c => c.Name).ToList();
-        static string Join(System.Collections.Generic.List<string> names) =>
-            names.Count == 0 ? "-" : string.Join(", ", names);
-        _tray.SetTooltip($"AudioHQ\nON: {Join(on)}\nOFF: {Join(off)}");
-    }
-
-    // The master tops out at 100%, so 100% is the top of the track. Pin the green unity line (and
-    // the "100" label beside it) to the thumb centre at full scale, derived from the thumb's
-    // rendered position, so the thumb rests on the line at 100% and overhangs slightly above it.
-    private void PositionMasterUnityLine()
-    {
-        MasterFader.ApplyTemplate();
-        MasterFader.UpdateLayout();
-        if (MasterFader.Template?.FindName("PART_Track", MasterFader) is not Track track) return;
-        if (track.Thumb is not { ActualHeight: > 0 } thumb || MasterUnityLine.Parent is not UIElement parent) return;
-
-        double range = MasterFader.Maximum - MasterFader.Minimum;
-        if (range <= 0) return;
-
-        Point thumbCentre = thumb.TranslatePoint(new Point(thumb.ActualWidth / 2, thumb.ActualHeight / 2), parent);
-        double travel = Math.Max(0, track.ActualHeight - thumb.ActualHeight);
-        double unityY = thumbCentre.Y - (MasterFader.Maximum - MasterFader.Value) / range * travel;
-
-        MasterUnityLine.Margin = new Thickness(0, unityY - MasterUnityLine.Height / 2, 0, 0);
-        // The label canvas sits 10px below the grid top; centre the "100" text on the line.
-        Canvas.SetTop(MasterTopLabel, unityY - 10 - MasterTopLabel.ActualHeight / 2);
-    }
-
     private void Options_Click(object sender, RoutedEventArgs e)
     {
-        new OptionsWindow { Owner = this, DataContext = _viewModel }.ShowDialog();
+        var window = OwnedWindows.OfType<OptionsWindow>().FirstOrDefault();
+        if (window is null)
+        {
+            window = new OptionsWindow { Owner = this, DataContext = _viewModel };
+            WindowPlacement.FollowOwner(window);
+            window.Show();
+        }
+        else
+        {
+            if (!window.IsVisible) window.Show();
+            window.Activate();
+        }
+    }
+
+    // --- Per-app mixer panel (left slide-out) ----------------------------------
+
+    // Toggle the panel open/closed; the setter refreshes the list when it opens.
+    private void ToggleAppPanel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_appMixer is null) return;
+        if (_appMixerWindow is not null)
+        {
+            if (_appMixerWindow.IsVisible)
+            {
+                _appMixerWindow.Hide();
+                _appMixer.IsExpanded = false;
+            }
+            else
+            {
+                _appMixer.IsExpanded = true;
+                _appMixerWindow.Show();
+                _appMixerWindow.Activate();
+            }
+            return;
+        }
+        bool expand = !_appMixer.IsExpanded;
+        _appMixer.IsExpanded = expand;
+        _appPanelAnimator?.Animate(expand);
+    }
+
+    private void RestoreWindowPosition()
+    {
+        if (_viewModel?.Settings is not { MainWindowLeft: double left, MainWindowTop: double top }) return;
+        if (!double.IsFinite(left) || !double.IsFinite(top)) return;
+
+        const double visibleEdge = 50;
+        bool intersectsVirtualDesktop =
+            left + visibleEdge >= SystemParameters.VirtualScreenLeft &&
+            left <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - visibleEdge &&
+            top + visibleEdge >= SystemParameters.VirtualScreenTop &&
+            top <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - visibleEdge;
+        if (!intersectsVirtualDesktop) return;
+
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = left;
+        Top = top;
+    }
+
+    private void SaveWindowPosition()
+    {
+        if (_viewModel is null) return;
+        Rect placement = WindowState == WindowState.Normal ?
+            new Rect(Left, Top, ActualWidth, ActualHeight) : RestoreBounds;
+        if (!double.IsFinite(placement.Left) || !double.IsFinite(placement.Top)) return;
+        _viewModel.Settings.MainWindowLeft = placement.Left;
+        _viewModel.Settings.MainWindowTop = placement.Top;
+        _viewModel.SaveSettings();
+    }
+
+    private void AppMixerDock_Click(object sender, RoutedEventArgs e)
+    {
+        if (_appMixerWindow is null) DetachAppMixer();
+        else AttachAppMixer();
+    }
+
+    private void DetachAppMixer()
+    {
+        if (_appMixer is null || _viewModel is null || _appMixerWindow is not null) return;
+        AppPanel.BeginAnimation(WidthProperty, null);
+        AppPanel.BeginAnimation(MarginProperty, null);
+        AppMixerRegion.Children.Remove(AppPanel);
+        AppPanel.Width = (double)FindResource("AppMixerPanelWidth");
+        AppPanel.Margin = new Thickness(0);
+        _appMixer.IsExpanded = true;
+        _appMixerWindow = new AppMixerWindow(this, AppPanel, AppMixerItems, _appMixer);
+        _appMixerWindow.IsVisibleChanged += (_, _) =>
+            _appMixer.IsExpanded = _appMixerWindow?.IsVisible == true;
+        _viewModel.Settings.AppMixerDetached = true;
+        _viewModel.SaveSettings();
+        AppMixerDockButton.ToolTip = "Attach mixer";
+        AppMixerDetachIcon.Visibility = Visibility.Collapsed;
+        AppMixerAttachIcon.Visibility = Visibility.Visible;
+        _appMixerWindow.Show();
+    }
+
+    private void AttachAppMixer()
+    {
+        if (_appMixerWindow is null || _viewModel is null) return;
+        _appMixerWindow.ReleaseMixer();
+        _appMixerWindow.ClosePermanently();
+        _appMixerWindow = null;
+        AppMixerRegion.Children.Add(AppPanel);
+        DockPanel.SetDock(AppPanel, Dock.Left);
+        AppPanel.Width = (double)FindResource("AppMixerPanelWidth");
+        AppPanel.Margin = (Thickness)FindResource("AppMixerPanelOpenMargin");
+        _appMixer!.IsExpanded = true;
+        _viewModel.Settings.AppMixerDetached = false;
+        _viewModel.SaveSettings();
+        AppMixerDockButton.ToolTip = "Detach mixer";
+        AppMixerAttachIcon.Visibility = Visibility.Collapsed;
+        AppMixerDetachIcon.Visibility = Visibility.Visible;
+    }
+
+    // Drag-reorder an app row. The drag handle (bottom-left of each row) starts the drag;
+    // a ghost adorner follows the cursor and the source row is dimmed while dragging.
+    private void AppRow_DragStart(object sender, MouseButtonEventArgs e)
+    {
+        _appRowDrag?.Start(sender, e);
+    }
+
+    private void AppRow_DragOver(object sender, DragEventArgs e)
+    {
+        _appRowDrag?.DragOver(sender, e);
+    }
+
+    private void AppRow_Drop(object sender, DragEventArgs e)
+    {
+        _appRowDrag?.Drop(sender, e);
     }
 
     // Open the graphic-EQ editor for the channel whose EQ pill was clicked.
     private void ChannelEq_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement fe && fe.DataContext is ChannelViewModel channel)
-            new EqWindow { Owner = this, DataContext = channel }.ShowDialog();
-    }
-
-    // Double-click the master fader to snap it back to 100% (unity).
-    private void Fader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 2 && sender is Slider slider)
         {
-            slider.Value = 1.0;
-            e.Handled = true;
+            var window = OwnedWindows.OfType<EqWindow>()
+                .FirstOrDefault(w => ReferenceEquals(w.DataContext, channel));
+            if (window is null)
+            {
+                window = new EqWindow { Owner = this, DataContext = channel };
+                WindowPlacement.FollowOwner(window);
+                window.Show();
+            }
+            else
+            {
+                if (!window.IsVisible) window.Show();
+                window.Activate();
+            }
         }
     }
 
@@ -151,32 +237,18 @@ public partial class MainWindow : Window
 
     private void Grip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement fe && fe.DataContext is ChannelViewModel channel)
-        {
-            DragDrop.DoDragDrop(fe, channel, DragDropEffects.Move);
-            e.Handled = true;
-        }
+        ChannelDragDropController.StartDrag(sender, e);
     }
 
     private void Channel_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(typeof(ChannelViewModel))
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
-        e.Handled = true;
+        ChannelDragDropController.DragOver(e);
     }
 
     private void Channel_Drop(object sender, DragEventArgs e)
     {
         if (_viewModel is null) return;
-        if (e.Data.GetData(typeof(ChannelViewModel)) is not ChannelViewModel source) return;
-        if (sender is not FrameworkElement fe || fe.DataContext is not ChannelViewModel target) return;
-        if (ReferenceEquals(source, target)) return;
-
-        int from = _viewModel.Channels.IndexOf(source);
-        int to = _viewModel.Channels.IndexOf(target);
-        _viewModel.MoveChannel(from, to);
-        e.Handled = true;
+        ChannelDragDropController.Drop(_viewModel, sender, e);
     }
 
     // --- Inline rename ---------------------------------------------------------
@@ -192,29 +264,16 @@ public partial class MainWindow : Window
 
     private void RenameBox_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        // The box is created collapsed; focus/select only once it is shown for editing.
-        if (sender is TextBox box && box.IsVisible)
-        {
-            box.Dispatcher.BeginInvoke(new Action(() => { box.Focus(); box.SelectAll(); }),
-                System.Windows.Threading.DispatcherPriority.Input);
-        }
+        if (sender is TextBox box) RenameTextBoxController.FocusWhenVisible(box);
     }
 
     private void RenameBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not TextBox box) return;
-        if (e.Key == Key.Enter)
+        e.Handled = RenameTextBoxController.HandleKeyDown(box, e, () =>
         {
-            CommitRename(box);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape)
-        {
-            // Discard the edit: revert the box to the bound value, then close.
-            box.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
             if (box.DataContext is ChannelViewModel channel) channel.IsEditing = false;
-            e.Handled = true;
-        }
+        });
     }
 
     private void RenameBox_LostFocus(object sender, RoutedEventArgs e)
@@ -224,47 +283,10 @@ public partial class MainWindow : Window
 
     private static void CommitRename(TextBox box)
     {
-        // LostFocus binding pushes the new name; just leave edit mode.
-        box.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
-        if (box.DataContext is ChannelViewModel channel) channel.IsEditing = false;
-    }
-
-    // --- Master rename (same pattern, but on the MixerViewModel) ----------------
-
-    private void MasterName_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 2 && _viewModel is not null)
+        RenameTextBoxController.Commit(box, () =>
         {
-            _viewModel.IsEditingMaster = true;
-            e.Handled = true;
-        }
-    }
-
-    private void MasterRenameBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (sender is not TextBox box) return;
-        if (e.Key == Key.Enter)
-        {
-            CommitMasterRename(box);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape)
-        {
-            box.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
-            if (_viewModel is not null) _viewModel.IsEditingMaster = false;
-            e.Handled = true;
-        }
-    }
-
-    private void MasterRenameBox_LostFocus(object sender, RoutedEventArgs e)
-    {
-        if (sender is TextBox box) CommitMasterRename(box);
-    }
-
-    private void CommitMasterRename(TextBox box)
-    {
-        box.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
-        if (_viewModel is not null) _viewModel.IsEditingMaster = false;
+            if (box.DataContext is ChannelViewModel channel) channel.IsEditing = false;
+        });
     }
 
     // --- Add channel -----------------------------------------------------------
@@ -296,15 +318,22 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        SaveWindowPosition();
         // Close-to-tray (when enabled) hides instead of exiting; the tray Exit item
         // bypasses this and lets the window really close.
-        if (_tray?.HandleClosing(e) == true) return;
+        if (_traySync?.HandleClosing(e) == true) return;
         base.OnClosing(e);
     }
 
     protected override void OnClosed(EventArgs e)
     {
-        _tray?.Dispose();
+        if (_appMixerWindow is not null)
+        {
+            _appMixerWindow.ReleaseMixer();
+            _appMixerWindow.ClosePermanently();
+        }
+        _traySync?.Dispose();
+        _appMixer?.Dispose();
         _viewModel?.Dispose();
         base.OnClosed(e);
     }

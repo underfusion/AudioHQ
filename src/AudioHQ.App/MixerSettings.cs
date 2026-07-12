@@ -13,8 +13,16 @@ public sealed class ChannelDefinition
     public string Name { get; set; } = "";
     public double Gain { get; set; } = 1.0;
     public bool Active { get; set; }
+    public bool Focused { get; set; }
     // Per-channel graphic EQ; null on channels saved before EQ existed (treated as off).
     public EqSettings? Eq { get; set; }
+}
+
+/// <summary>Persisted per-app mixer row state: stable app identity, pin state and order.</summary>
+public sealed class AppMixerDefinition
+{
+    public string Key { get; set; } = "";
+    public bool Pinned { get; set; }
 }
 
 /// <summary>
@@ -29,6 +37,17 @@ public sealed class MixerSettings
     public string? MasterName { get; set; }
     public int LatencyMs { get; set; } = 30;
     public List<ChannelDefinition> Channels { get; set; } = new();
+
+    // Per-app mixer layout. Entries are kept even while an app is not currently playing so
+    // pinned/order state comes back when the app creates a new audio session later.
+    public List<AppMixerDefinition> AppMixerApps { get; set; } = new();
+
+    // The app mixer can live inside the main window or in its own panel beside it.
+    public bool AppMixerDetached { get; set; }
+
+    // Last normal main-window position. Null means first launch and uses CenterScreen.
+    public double? MainWindowLeft { get; set; }
+    public double? MainWindowTop { get; set; }
 
     // App-wide saved EQ presets (shared across channels).
     public List<EqPreset> EqPresets { get; set; } = new();

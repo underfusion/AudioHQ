@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using WinForms = System.Windows.Forms;
 using AudioHQ.Core;
@@ -18,23 +21,35 @@ public sealed class TrayController : IDisposable
     private readonly Window _window;
     private readonly Func<bool> _minimizeToTray;
     private readonly Func<bool> _closeToTray;
+    private readonly Action? _onMiddleClick;
     private readonly WinForms.NotifyIcon _icon;
+    private readonly Icon _baseIcon;
+    private Icon? _overlayIcon;
     private bool _exiting;
+    private List<Window> _visibleOwnedWindows = new();
+    private Window? _activeWindowBeforeHide;
 
-    public TrayController(Window window, Func<bool> minimizeToTray, Func<bool> closeToTray)
+    public TrayController(Window window, Func<bool> minimizeToTray, Func<bool> closeToTray,
+        Action? onMiddleClick = null)
     {
         _window = window;
         _minimizeToTray = minimizeToTray;
         _closeToTray = closeToTray;
+        _onMiddleClick = onMiddleClick;
 
+        _baseIcon = LoadIcon();
         _icon = new WinForms.NotifyIcon
         {
-            Icon = LoadIcon(),
+            Icon = _baseIcon,
             Text = $"AudioHQ v{AppVersion.Display}",
             Visible = true,
         };
-        // Single left-click toggles the window in/out of the tray.
-        _icon.MouseClick += (_, e) => { if (e.Button == WinForms.MouseButtons.Left) Toggle(); };
+        // Left-click toggles the window; middle-click toggles the focused channel.
+        _icon.MouseClick += (_, e) =>
+        {
+            if (e.Button == WinForms.MouseButtons.Left) Toggle();
+            else if (e.Button == WinForms.MouseButtons.Middle) _onMiddleClick?.Invoke();
+        };
 
         var menu = new WinForms.ContextMenuStrip();
         menu.Items.Add("Show AudioHQ", null, (_, _) => Restore());
@@ -44,6 +59,52 @@ public sealed class TrayController : IDisposable
 
         _window.StateChanged += OnStateChanged;
     }
+
+    /// <summary>
+    /// Update the tray icon to reflect the focused channel state.
+    /// Pass true for active (green dot), false or null for plain icon (no dot).
+    /// </summary>
+    public void SetFocusedChannelState(bool? isActive)
+    {
+        try
+        {
+            _overlayIcon?.Dispose();
+            _overlayIcon = null;
+            if (isActive == true)
+            {
+                _overlayIcon = BuildGreenDotIcon();
+                _icon.Icon = _overlayIcon;
+            }
+            else
+            {
+                _icon.Icon = _baseIcon;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"TrayController.SetFocusedChannelState failed: {ex.Message}");
+        }
+    }
+
+    private Icon BuildGreenDotIcon()
+    {
+        using var bmp = new Bitmap(16, 16, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.Clear(Color.Transparent);
+            using var base16 = new Icon(_baseIcon, 16, 16);
+            using var baseBmp = base16.ToBitmap();
+            g.DrawImage(baseBmp, 0, 0, 16, 16);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.FillEllipse(Brushes.LimeGreen, 10, 10, 5, 5);
+        }
+        var handle = bmp.GetHicon();
+        try { return (Icon)Icon.FromHandle(handle).Clone(); }
+        finally { DestroyIcon(handle); }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr handle);
 
     /// <summary>Live hover text for the tray icon (e.g. which outputs are ON/OFF).</summary>
     public void SetTooltip(string text)
@@ -86,7 +147,7 @@ public sealed class TrayController : IDisposable
     {
         if (_window.WindowState == WindowState.Minimized && _minimizeToTray())
         {
-            _window.Hide();           // drop the taskbar button; live in the tray only
+            HideWindowSet();          // drop the full owned window set from the desktop
             Log.Write("Tray: minimized to tray");
         }
     }
@@ -100,7 +161,7 @@ public sealed class TrayController : IDisposable
     {
         if (_exiting || !_closeToTray()) return false;
         e.Cancel = true;
-        _window.Hide();
+        HideWindowSet();
         Log.Write("Tray: close-to-tray, hidden");
         return true;
     }
@@ -110,7 +171,7 @@ public sealed class TrayController : IDisposable
     {
         if (_window.IsVisible && _window.WindowState != WindowState.Minimized)
         {
-            _window.Hide();
+            HideWindowSet();
             Log.Write("Tray: toggled to tray");
         }
         else
@@ -123,12 +184,38 @@ public sealed class TrayController : IDisposable
     {
         _window.Show();
         _window.WindowState = WindowState.Normal;
-        _window.Activate();
+        foreach (var owned in _visibleOwnedWindows.ToArray())
+        {
+            try
+            {
+                if (owned.Owner == _window && !owned.IsVisible) owned.Show();
+            }
+            catch (InvalidOperationException ex)
+            {
+                Log.Write($"Tray: skipped closed owned window '{owned.Title}': {ex.Message}");
+            }
+        }
+
+        var activate = _activeWindowBeforeHide;
+        if (activate is not null && activate.IsVisible) activate.Activate();
+        else _window.Activate();
+        _visibleOwnedWindows.Clear();
+        _activeWindowBeforeHide = null;
+    }
+
+    private void HideWindowSet()
+    {
+        var owned = _window.OwnedWindows.Cast<Window>().Where(w => w.IsVisible).ToList();
+        _visibleOwnedWindows = owned;
+        _activeWindowBeforeHide = owned.FirstOrDefault(w => w.IsActive) ?? _window;
+        foreach (var child in owned) child.Hide();
+        _window.Hide();
     }
 
     private void Exit()
     {
         _exiting = true;
+        _visibleOwnedWindows.Clear();
         _window.Close();
     }
 
@@ -137,5 +224,7 @@ public sealed class TrayController : IDisposable
         _window.StateChanged -= OnStateChanged;
         _icon.Visible = false;
         _icon.Dispose();
+        _overlayIcon?.Dispose();
+        _baseIcon.Dispose();
     }
 }

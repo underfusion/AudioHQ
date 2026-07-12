@@ -49,8 +49,8 @@
                                            Height="18" />
                                 <Slider Orientation="Vertical" Height="150" Width="30"
                                         HorizontalAlignment="Center"
-                                        Minimum="-12" Maximum="12" Value="{Binding GainDb}"
-                                        TickPlacement="Both" Ticks="-12,-6,0,6,12"
+                                        Minimum="-36" Maximum="12" Value="{Binding GainDb}"
+                                        TickPlacement="Both" Ticks="12,0,-12,-24,-36"
                                         IsSnapToTickEnabled="False" IsMoveToPointEnabled="True"
                                         ToolTip="Double-click to reset to 0 dB"
                                         PreviewMouseLeftButtonDown="BandSlider_PreviewMouseLeftButtonDown" />
@@ -74,13 +74,47 @@
             </Grid>
         </Border>
 
-        <!-- Presets: pick + Load/Delete on top, name + Save below. Shared across channels. -->
+        <!-- Bass-only high-cut: pass the deep low end, roll everything above the cutoff off.
+             The right tool for a bass shaker. Applies on top of the peaking bands above. -->
+        <Border Margin="0,12,0,0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="14,10">
+            <StackPanel>
+                <DockPanel>
+                    <CheckBox Content="Bass-only (low-pass)" DockPanel.Dock="Left" Cursor="Hand"
+                              Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                              IsChecked="{Binding Eq.LowPassEnabled}"
+                              ToolTip="Cut everything above the cutoff - keep only the low bass for a shaker" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                IsEnabled="{Binding Eq.LowPassEnabled}">
+                        <RadioButton Content="12 dB/oct" GroupName="slope" Cursor="Hand"
+                                     Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                     IsChecked="{Binding Eq.Is12dB}" />
+                        <RadioButton Content="24 dB/oct" GroupName="slope" Cursor="Hand" Margin="12,0,0,0"
+                                     Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                     IsChecked="{Binding Eq.Is24dB}" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel Margin="0,8,0,0" IsEnabled="{Binding Eq.LowPassEnabled}">
+                    <TextBlock Text="Cutoff" DockPanel.Dock="Left" VerticalAlignment="Center"
+                               Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,0,10,0" />
+                    <TextBlock Text="{Binding Eq.LowPassText}" DockPanel.Dock="Right" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold"
+                               Width="54" TextAlignment="Right" />
+                    <Slider Minimum="30" Maximum="500" Value="{Binding Eq.LowPassHz}"
+                            VerticalAlignment="Center" IsMoveToPointEnabled="True"
+                            TickPlacement="BottomRight" Ticks="30,60,80,120,200,300,500" />
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Presets: selection loads immediately; Reset reverts unsaved edits to the active preset. -->
         <TextBlock Text="presets" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,16,0,4" />
         <DockPanel>
-            <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Delete"
+            <Button x:Name="DeletePresetButton" DockPanel.Dock="Right"
+                    Style="{StaticResource DarkButtonDanger}" Content="Delete"
                     Click="DeletePreset_Click" Width="64" Height="26" Margin="6,0,0,0" />
-            <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Load"
-                    Click="LoadPreset_Click" Width="64" Height="26" Margin="6,0,0,0" />
+            <Button x:Name="ResetPresetButton" DockPanel.Dock="Right"
+                    Style="{StaticResource DarkButton}" Content="Reset" IsEnabled="False"
+                    Click="ResetPreset_Click" Width="64" Height="26" Margin="6,0,0,0" />
             <Grid>
                 <ComboBox x:Name="PresetCombo" Style="{StaticResource DarkCombo}" Height="26"
                           ItemsSource="{Binding EqPresets.Presets}"
@@ -91,23 +125,23 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <!-- Shown when the live curve matches no saved preset (e.g. after tweaking faders). -->
-                <TextBlock x:Name="CustomLabel" Text="Custom (not saved)" Margin="10,0,26,0"
+                <!-- Overlays the selected name while its live values differ from the saved preset. -->
+                <TextBlock x:Name="PresetStatusLabel" Text="Custom (not saved)" Margin="10,0,26,0"
                            VerticalAlignment="Center" IsHitTestVisible="False"
                            Foreground="{StaticResource DimTextBrush}" FontStyle="Italic" FontSize="12"
                            Visibility="Collapsed" />
             </Grid>
         </DockPanel>
         <DockPanel Margin="0,6,0,0">
-            <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Save preset"
+            <Button x:Name="SavePresetButton" DockPanel.Dock="Right"
+                    Style="{StaticResource DarkButtonSuccess}" Content="Save preset"
                     Click="SavePreset_Click" Width="134" Height="26" Margin="6,0,0,0" />
             <TextBox x:Name="PresetName" Style="{StaticResource DarkTextBox}" Height="26"
-                     ToolTip="New preset name (existing name overwrites)" />
+                     ToolTip="New preset name (existing name overwrites)"
+                     TextChanged="PresetName_TextChanged" />
         </DockPanel>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="Reset" Style="{StaticResource DarkButton}" Click="Reset_Click"
-                    Width="80" Height="28" Margin="0,0,8,0" />
             <Button Content="Close" Style="{StaticResource DarkButtonAccent}" Click="Close_Click"
                     Width="80" Height="28" />
         </StackPanel>

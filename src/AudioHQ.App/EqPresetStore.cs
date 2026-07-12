@@ -38,7 +38,7 @@ public sealed class EqPresetStore
     public static bool IsDefaultName(string? name) =>
         string.Equals((name ?? "").Trim(), DefaultName, StringComparison.OrdinalIgnoreCase);
 
-    public bool IsDefault(EqPreset? preset) => preset is not null && IsDefaultName(preset.Name);
+    public static bool IsDefault(EqPreset? preset) => preset is not null && IsDefaultName(preset.Name);
 
     private static EqPreset CreateDefault() => new()
     {

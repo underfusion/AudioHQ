@@ -4,12 +4,19 @@
     <ProjectReference Include="..\AudioHQ.Core\AudioHQ.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- FluidMoveBehavior: smooth slide animation when the per-app mixer rows reorder
+         (pin to top / drag to reorder). Microsoft-published Blend behaviors. -->
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.122" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- Product exe is AudioHQ.exe (not AudioHQ.App.exe); process name is "AudioHQ". -->
     <AssemblyName>AudioHQ</AssemblyName>
     <TargetFramework>net7.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CA1001</NoWarn>
     <UseWPF>true</UseWPF>
     <!-- WinForms is enabled only for System.Windows.Forms.NotifyIcon (tray). -->
     <UseWindowsForms>true</UseWindowsForms>

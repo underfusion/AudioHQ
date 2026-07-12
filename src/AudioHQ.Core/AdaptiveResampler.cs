@@ -35,19 +35,11 @@ public sealed class AdaptiveResampler : ISampleProvider
     private readonly double _targetSeconds;
     private readonly double _nominalInRate;
     private readonly int _channels;
-    private readonly string _label;
     private readonly long _controlFrames; // frames per control tick (~0.2 s)
 
     private double _windowMinFill = double.MaxValue;
     private long _windowFrames;
     private double _smoothedTrough;
-
-    // --- throttled diagnostics (one summary line per ~second of output) ---
-    private long _logFrames;
-    private double _logMinFillMs = double.MaxValue;
-    private double _logMaxFillMs;
-    private double _lastCorrection;
-    private int _maxIterations;
 
     public WaveFormat WaveFormat { get; }
 
@@ -55,9 +47,8 @@ public sealed class AdaptiveResampler : ISampleProvider
     /// <param name="targetRate">Output sample rate (the device mix rate).</param>
     /// <param name="bufferedSeconds">Live read of the upstream backlog, in seconds.</param>
     /// <param name="targetSeconds">Trough backlog the controller steers toward.</param>
-    /// <param name="label">Device name, for the diagnostic log lines.</param>
     public AdaptiveResampler(ISampleProvider source, int targetRate,
-                             Func<double> bufferedSeconds, double targetSeconds, string label)
+                             Func<double> bufferedSeconds, double targetSeconds)
     {
         _source = source;
         _bufferedSeconds = bufferedSeconds;
@@ -65,7 +56,6 @@ public sealed class AdaptiveResampler : ISampleProvider
         _smoothedTrough = targetSeconds;
         _channels = source.WaveFormat.Channels;
         _nominalInRate = source.WaveFormat.SampleRate;
-        _label = label;
         _controlFrames = targetRate / 5; // recompute the ratio ~5x per second
 
         WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(targetRate, _channels);
@@ -109,34 +99,21 @@ public sealed class AdaptiveResampler : ISampleProvider
             // error > 0 means we are carrying needless latency, so speed up to drain it.
             _smoothedTrough += TroughSmoothing * (_windowMinFill - _smoothedTrough);
             double error = _smoothedTrough - _targetSeconds;
-            _lastCorrection = Math.Clamp(error * Gain, -MaxCorrection, MaxCorrection);
-            _resampler.SetRates(_nominalInRate * (1.0 + _lastCorrection), WaveFormat.SampleRate);
+            double correction = Math.Clamp(error * Gain, -MaxCorrection, MaxCorrection);
+            _resampler.SetRates(_nominalInRate * (1.0 + correction), WaveFormat.SampleRate);
             _windowMinFill = double.MaxValue;
             _windowFrames = 0;
         }
 
-        Diagnose(fill, iterations, framesProduced);
+        // Never return 0 from a live pipeline: WasapiOut treats a zero read as end-of-stream
+        // and stops playback for good. If the resampler momentarily produced nothing
+        // (filter priming right after a resync), hand back silence instead.
+        if (framesProduced == 0 && framesRequested > 0)
+        {
+            Array.Clear(buffer, offset, count);
+            return count;
+        }
+
         return framesProduced * _channels;
-    }
-
-    // Emits one summary line per ~second of output: backlog range, smoothed trough, applied
-    // correction, worst-case loop depth. Temporary instrumentation for the crackle
-    // investigation; throttled so it touches the log at most ~1/s on the hot path.
-    private void Diagnose(double fillSeconds, int iterations, int framesProduced)
-    {
-        double fillMs = fillSeconds * 1000.0;
-        if (fillMs < _logMinFillMs) _logMinFillMs = fillMs;
-        if (fillMs > _logMaxFillMs) _logMaxFillMs = fillMs;
-        if (iterations > _maxIterations) _maxIterations = iterations;
-
-        _logFrames += framesProduced;
-        if (_logFrames < WaveFormat.SampleRate) return;
-
-        Log.Write($"AdaptiveResampler '{_label}': fill {_logMinFillMs:0.0}-{_logMaxFillMs:0.0}ms, " +
-                  $"trough~{_smoothedTrough * 1000:0.0}ms, corr={_lastCorrection * 100:0.000}%, maxIter={_maxIterations}");
-        _logFrames = 0;
-        _logMinFillMs = double.MaxValue;
-        _logMaxFillMs = 0;
-        _maxIterations = 0;
     }
 }

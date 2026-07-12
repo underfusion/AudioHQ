@@ -41,8 +41,14 @@ while (true)
     var target = devices[index];
     try
     {
-        using var mirror = new LoopbackMirror(source, target);
-        mirror.Start();
+        using var engine = new MirrorEngine();
+        var liveSource = AudioDevices.FindRenderById(source.ID)
+            ?? throw new InvalidOperationException("Source device is no longer active.");
+        var liveTarget = AudioDevices.FindRenderById(target.ID)
+            ?? throw new InvalidOperationException("Target device is no longer active.");
+
+        engine.Start(liveSource);
+        engine.AddOutput(liveTarget);
         Console.WriteLine($"\nMirroring '{source.FriendlyName}' -> '{target.FriendlyName}'");
         Console.WriteLine("Play some music. Press Enter to stop.");
         Console.ReadLine();

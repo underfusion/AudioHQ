@@ -15,6 +15,9 @@ public sealed class EqViewModel : ViewModelBase
     private readonly Action _onChanged;
     private bool _enabled;
     private int _bandCount;
+    private bool _lowPassEnabled;
+    private double _lowPassHz;
+    private int _lowPassSlope;
 
     public ObservableCollection<EqBandViewModel> Bands { get; } = new();
 
@@ -23,6 +26,9 @@ public sealed class EqViewModel : ViewModelBase
         _onChanged = onChanged;
         _enabled = settings?.Enabled ?? false;
         _bandCount = settings?.Bands == 6 ? 6 : 3;
+        _lowPassEnabled = settings?.LowPassEnabled ?? false;
+        _lowPassHz = settings?.LowPassHz is > 0 ? settings!.LowPassHz : EqBands.LowPassDefaultHz;
+        _lowPassSlope = settings?.LowPassSlope == 1 ? 1 : 2;
         BuildBands(settings?.GainsDb, settings?.QValues);
     }
 
@@ -53,6 +59,50 @@ public sealed class EqViewModel : ViewModelBase
     public bool Is3Band { get => _bandCount == 3; set { if (value) BandCount = 3; } }
     public bool Is6Band { get => _bandCount == 6; set { if (value) BandCount = 6; } }
 
+    /// <summary>"Bass-only" high-cut on/off. Applies on top of the peaking bands.</summary>
+    public bool LowPassEnabled
+    {
+        get => _lowPassEnabled;
+        set { if (_lowPassEnabled == value) return; _lowPassEnabled = value; OnPropertyChanged(); _onChanged(); }
+    }
+
+    /// <summary>Low-pass cutoff in Hz, clamped to the knob range.</summary>
+    public double LowPassHz
+    {
+        get => _lowPassHz;
+        set
+        {
+            double v = Math.Clamp(value, EqBands.LowPassMinHz, EqBands.LowPassMaxHz);
+            if (Math.Abs(_lowPassHz - v) < 0.01) return;
+            _lowPassHz = v;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LowPassText));
+            _onChanged();
+        }
+    }
+
+    public string LowPassText => $"{_lowPassHz:0} Hz";
+
+    /// <summary>Slope in cascaded stages: 1 = 12 dB/oct, 2 = 24 dB/oct.</summary>
+    public int LowPassSlope
+    {
+        get => _lowPassSlope;
+        set
+        {
+            int s = value == 1 ? 1 : 2;
+            if (_lowPassSlope == s) return;
+            _lowPassSlope = s;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Is12dB));
+            OnPropertyChanged(nameof(Is24dB));
+            _onChanged();
+        }
+    }
+
+    // Radio-button bindings for the slope selector.
+    public bool Is12dB { get => _lowPassSlope == 1; set { if (value) LowPassSlope = 1; } }
+    public bool Is24dB { get => _lowPassSlope == 2; set { if (value) LowPassSlope = 2; } }
+
     private void BuildBands(double[]? gains, double[]? qs)
     {
         Bands.Clear();
@@ -72,11 +122,20 @@ public sealed class EqViewModel : ViewModelBase
         if (settings is null) return;
         _bandCount = settings.Bands == 6 ? 6 : 3;
         _enabled = settings.Enabled;
+        _lowPassEnabled = settings.LowPassEnabled;
+        _lowPassHz = settings.LowPassHz is > 0 ? settings.LowPassHz : EqBands.LowPassDefaultHz;
+        _lowPassSlope = settings.LowPassSlope == 1 ? 1 : 2;
         BuildBands(settings.GainsDb, settings.QValues);
         OnPropertyChanged(nameof(Enabled));
         OnPropertyChanged(nameof(BandCount));
         OnPropertyChanged(nameof(Is3Band));
         OnPropertyChanged(nameof(Is6Band));
+        OnPropertyChanged(nameof(LowPassEnabled));
+        OnPropertyChanged(nameof(LowPassHz));
+        OnPropertyChanged(nameof(LowPassText));
+        OnPropertyChanged(nameof(LowPassSlope));
+        OnPropertyChanged(nameof(Is12dB));
+        OnPropertyChanged(nameof(Is24dB));
         _onChanged();
     }
 
@@ -88,6 +147,15 @@ public sealed class EqViewModel : ViewModelBase
             band.SetGainSilently(0.0);
             band.SetQSilently(band.DefaultQ);
         }
+        _lowPassEnabled = false;
+        _lowPassHz = EqBands.LowPassDefaultHz;
+        _lowPassSlope = 2;
+        OnPropertyChanged(nameof(LowPassEnabled));
+        OnPropertyChanged(nameof(LowPassHz));
+        OnPropertyChanged(nameof(LowPassText));
+        OnPropertyChanged(nameof(LowPassSlope));
+        OnPropertyChanged(nameof(Is12dB));
+        OnPropertyChanged(nameof(Is24dB));
         _onChanged();
     }
 
@@ -97,5 +165,8 @@ public sealed class EqViewModel : ViewModelBase
         Bands = _bandCount,
         GainsDb = Bands.Select(b => b.GainDb).ToArray(),
         QValues = Bands.Select(b => b.Q).ToArray(),
+        LowPassEnabled = _lowPassEnabled,
+        LowPassHz = _lowPassHz,
+        LowPassSlope = _lowPassSlope,
     };
 }

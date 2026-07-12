@@ -3,6 +3,616 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.5.3 - 2026-07-12
+
+### Changed
+- Channel strip area now scrolls horizontally when more than 12 strips are added;
+  the window auto-grows to show up to 12 output channels at once without a scrollbar.
+
+## 0.5.2 - 2026-07-12
+
+### Changed
+- Owned EQ and Options windows now follow the main window at their current relative
+  offsets, making the visible AudioHQ windows move as one group. Manually repositioning
+  a child establishes its new offset for later main-window movement.
+
+## 0.5.1 - 2026-07-12
+
+### Changed
+- Main-window close now owns the whole application lifetime: with close-to-tray off,
+  closing it exits all owned windows; with tray behavior enabled, the main window and
+  every visible Options, EQ, and detached mixer window hide as one set.
+- Restoring from the tray reopens exactly the owned windows that were visible before
+  hiding and returns focus to the previously active window. Options and EQ are now
+  reusable owned modeless windows instead of blocking modal dialogs.
+
+## 0.5.0 - 2026-07-12
+
+### Changed
+- Reset the requested application version line to 0.5.0.
+- Changed the mandatory version cadence to 100 patch releases per minor:
+  `0.5.0` through `0.5.99`, followed by `0.6.0`.
+
+## 0.10.0 - 2026-07-12
+
+### Changed
+- EQ preset selection now loads immediately without a separate Load action.
+- Modified presets retain their original selection and display `Name (not saved)`.
+- Replaced Load with a Reset action that enables only for unsaved edits and restores
+  the active preset's saved values, including the built-in Default. Removed the
+  redundant bottom Reset button. Enable EQ is included in dirty-state detection.
+
+## 0.9.9 - 2026-07-12
+
+### Changed
+- EQ preset save action now becomes `Overwrite preset` when editing a selected
+  non-Default preset with an empty name field, and returns to `Save preset` when
+  a new name is entered. The action is green and Delete is red.
+
+## 0.9.8 - 2026-07-12
+
+### Changed
+- Reversed both mixer dock-action arrows: Detach now points left and Attach points right.
+
+## 0.9.7 - 2026-07-12
+
+### Changed
+- Replaced the mixer dock glyphs with a matched custom pair: Detach is a dim
+  outlined panel with an outward right arrow; Attach is a bright filled panel
+  with an inward left arrow.
+
+## 0.9.6 - 2026-07-12
+
+### Changed
+- Attaching the floating mixer now restores it immediately as a fully expanded
+  docked panel instead of returning it collapsed.
+- Replaced the custom attach/detach paths with the standard Windows Segoe Fluent
+  `DockLeft` and `NewWindow` glyphs.
+
+## 0.9.5 - 2026-07-12
+
+### Changed
+- Detached mixer now uses the same native draggable title bar as AudioHQ, Options,
+  and EQ, titled `AudioHQ - Mixer`. Its X button hides the mixer so the main chevron
+  can show it again, while attach and application shutdown close the host permanently.
+
+## 0.9.4 - 2026-07-12
+
+### Changed
+- The main window's mixer chevron now hides and shows the floating mixer while it
+  remains detached. Hiding pauses app-session refresh; showing refreshes and focuses it.
+
+## 0.9.3 - 2026-07-12
+
+### Changed
+- Reduced the detached mixer's no-scroll maximum from 12 to 10 app rows.
+- Maximum height now uses each row's actual rendered height when available, removing
+  the cumulative empty gap below the last app while retaining the handle inset.
+
+## 0.9.1 - 2026-07-12
+
+### Fixed
+- Detached mixer now opens fully expanded by default for all current apps, capped
+  at 12 visible rows and the available screen height. A shorter height is retained
+  only after the user deliberately drags the resize handle upward.
+
+## 0.9.0 - 2026-07-12
+
+### Fixed
+- The detached mixer now sums every generated app-row container when calculating
+  its maximum height, avoiding the scroll viewer's constrained viewport measurement
+  that incorrectly limited the panel to approximately one visible row.
+
+## 0.8.9 - 2026-07-12
+
+### Fixed
+- The detached mixer's maximum height now uses the app rows' measured rendered
+  height instead of a fixed estimate, preventing an unnecessary scrollbar when
+  the panel is fully expanded and the screen has enough room.
+
+## 0.8.8 - 2026-07-12
+
+### Fixed
+- Centered the main window on first launch and restored its last valid normal
+  position on later launches, with virtual-desktop bounds validation.
+- Fixed the detached mixer's initial natural height so all current app rows are
+  visible up to the screen limit, and made its resize indicator thinner.
+
+## 0.8.7 - 2026-07-12
+
+### Added
+- Added a centered bottom resize handle to the detached mixer. It can shorten the
+  panel or restore it up to the exact height needed for all visible app rows, but
+  cannot create empty space below them.
+
+## 0.8.6 - 2026-07-12
+
+### Changed
+- Detached mixer height now follows its visible app rows, capped by the available
+  work area, instead of using a manually resized persisted height.
+- Doubled the app mixer's right content inset to 12 px and removed the bottom
+  resize thumb that produced a white strip below the rounded panel.
+
+## 0.8.5 - 2026-07-12
+
+### Fixed
+- Kept the app mixer's view-model binding when moving the panel into its detached
+  window, so active application rows remain visible after detaching or restarting.
+
+## 0.8.4 - 2026-07-12
+
+### Added
+- Added a persistent dock/undock control to the app mixer. The detached mixer is
+  top-aligned to the left of the main window, opens at a taller default height,
+  and can be resized vertically from its bottom edge.
+- The collapsed mixer rail now reveals and focuses the detached mixer.
+
+## 0.8.3 - 2026-07-09
+
+### Changed
+- Closed the refactor plan after automated tests and user-confirmed live app
+  smoke verification.
+
+## 0.8.2 - 2026-07-09
+
+### Changed
+- Updated the refactor checkpoint plan for the final automated regression pass.
+
+## 0.8.1 - 2026-07-09
+
+### Changed
+- Added shared .NET SDK analyzer settings in `Directory.Build.props`.
+- Fixed production analyzer warnings and suppressed test-only naming/exception
+  warnings that conflict with xUnit and COM-status mapping tests.
+- Documented that the `net8.0` migration is deferred because this workspace only
+  has .NET SDK 7.0 installed.
+
+## 0.8.0 - 2026-07-09
+
+### Changed
+- Moved `OutputChannel` from `MirrorEngine.cs` into its own core file.
+- Updated the CLI tester to use `MirrorEngine` instead of the older
+  `LoopbackMirror` path.
+
+## 0.7.9 - 2026-07-09
+
+### Changed
+- Split `MainWindow.xaml` markup by moving app-mixer rows and channel strips into
+  named data templates, and extracted the master strip into `MasterStripControl`.
+
+## 0.7.8 - 2026-07-09
+
+### Changed
+- Split the large application resource dictionary into `Resources/Tokens.xaml`,
+  `Resources/StripStyles.xaml`, and `Resources/AppMixerStyles.xaml`, keeping
+  existing resource keys and merged-dictionary order.
+
+## 0.7.7 - 2026-07-09
+
+### Changed
+- Extracted main-window tray/taskbar synchronization, app-panel animation,
+  app-row drag reordering, channel drag reordering, and shared rename text-box
+  behavior into focused UI helpers.
+
+## 0.7.6 - 2026-07-09
+
+### Changed
+- Extracted channel activation, activation-failure status mapping, failed-output
+  cleanup, and auto-reactivation retry budgeting from `ChannelViewModel` into
+  focused helpers.
+
+### Added
+- Added tests for channel activation status mapping and retry-budget behavior.
+
+## 0.7.5 - 2026-07-09
+
+### Changed
+- Extracted source selection, device-list refresh, fallback recovery, and
+  sleep/resume restart handling from `MixerViewModel` into
+  `MixerSourceRecoveryViewModel`.
+
+## 0.7.4 - 2026-07-09
+
+### Changed
+- Extracted master-strip rename and source endpoint volume/mute state from
+  `MixerViewModel` into `MixerMasterViewModel`, with the main window binding to
+  `Master.*`.
+
+## 0.7.3 - 2026-07-09
+
+### Changed
+- Extracted curated output-channel collection, add/remove/reorder, and
+  tray-focus selection from `MixerViewModel` into
+  `MixerChannelCollectionViewModel` while preserving the existing root bindings.
+
+## 0.7.2 - 2026-07-09
+
+### Changed
+- Extracted tray and startup option coordination from `MixerViewModel` into
+  `MixerTrayOptionsViewModel`, keeping persistence and startup registration
+  behavior unchanged.
+
+### Added
+- Added tests for tray option persistence and Run-with-Windows synchronization.
+
+## 0.7.1 - 2026-07-09
+
+### Changed
+- Extracted the pure settings projection from `MixerViewModel.Save()` into
+  `MixerSettingsProjection`, leaving save timing and file I/O behavior unchanged.
+
+### Added
+- Added a focused test for settings projection so future root view-model
+  decomposition can keep persisted fields stable.
+
+## 0.7.0 - 2026-07-09
+
+### Added
+- Added `AppMixerLayout`, a pure app-mixer ordering helper with tests for pinning,
+  drag moves, saved-order replay and absent-row persistence.
+
+### Changed
+- `AppMixerViewModel` now delegates row ordering and persisted layout projection
+  to `AppMixerLayout`, completing the CP2 safety-net test checkpoint.
+
+## 0.6.9 - 2026-07-09
+
+### Changed
+- Extracted mixer notification bubble state into `MixerStatusViewModel` and bound
+  the main window status toast to that focused view-model.
+- Added tests for status message/severity behavior.
+
+## 0.6.8 - 2026-07-09
+
+### Added
+- Added `tests/AudioHQ.Tests`, an xUnit safety-net project covering EQ settings,
+  EQ view-model normalization/reset behavior and settings serialization.
+
+### Changed
+- Documented the test project in README and architecture docs, and marked CP2
+  as partially complete in `docs/REFACTOR_PLAN.md`.
+
+## 0.6.7 - 2026-07-09
+
+### Fixed
+- Completed the CP1 documentation baseline by normalizing README and architecture
+  diagrams to plain ASCII.
+- Corrected the versioning comment in `Directory.Build.props` so it matches the
+  project rule for automatic patch-to-minor rollover.
+- Marked CP1 complete in `docs/REFACTOR_PLAN.md`.
+
+## 0.6.6 - 2026-07-09
+
+### Added
+- Added `docs/REFACTOR_PLAN.md` with a technical audit, checkpointed refactor
+  plan, per-checkpoint progress percentages and known documentation risks.
+
+### Fixed
+- Updated the README app-mixer feature text so it no longer mentions the removed
+  refresh button or window-focus refresh path.
+- Corrected the architecture document's known-limitations section to reflect
+  that mixer state is now persisted across runs.
+
+## 0.6.5 - 2026-07-09
+
+### Changed
+- App mixer now refreshes its app-session list automatically while the panel is
+  open, so newly playing apps appear without the manual refresh button.
+- Replaced the app mixer refresh icon with a `MIXER` header above the app rows.
+
+## 0.6.4 - 2026-07-09
+
+### Fixed
+- Collapsed app mixer rail keeps the small left inset to the master strip via
+  the shared `MainContentMargin` resource instead of a literal panel margin.
+
+## 0.6.3 - 2026-07-09
+
+### Fixed
+- Collapsed app mixer rail now has the same 6px gap to the master strip as it
+  has to the window edge, removing the extra main-content left inset.
+
+## 0.6.2 - 2026-07-09
+
+### Fixed
+- Collapsed app mixer rail no longer keeps the hidden panel's left margin, so
+  the chevron button has matching spacing on both sides.
+
+## 0.6.1 - 2026-07-09
+
+### Fixed
+- App mixer layout now uses one consistent panel width resource matching its
+  content width and margins, so the right scrollbar is not clipped.
+- Removed the mirrored left scrollbar spacer that made the left inset appear
+  larger than the intended 12px medium spacing.
+
+## 0.6.0 - 2026-07-09
+
+### Fixed
+- App mixer channel list now uses the medium 12px spacing again on the left side
+  and bottom edge.
+
+## 0.5.9 - 2026-07-09
+
+### Fixed
+- App mixer channel list now uses a smaller left spacer and bottom inset, reducing
+  the visible left and lower padding around app rows by half.
+
+## 0.5.8 - 2026-07-09
+
+### Fixed
+- App mixer scrollbar now keeps the same 6px gap on its left side as on the
+  panel's right side, so it no longer touches mixer rows.
+- App mixer panel spacing now uses shared XAML resources for the panel margin,
+  inner padding, row padding and row gaps instead of repeated local pixel values.
+
+## 0.5.7 - 2026-07-08
+
+### Fixed
+- App mixer rows are now grouped by stable application identity, so browsers and
+  Electron apps that expose multiple WASAPI sessions/processes no longer appear
+  as duplicate rows.
+- App mixer pin state and row order are persisted in `settings.json` and kept
+  even while an app is absent, so a pinned app returns to its remembered position
+  when it starts playing again.
+
+## 0.5.6 - 2026-07-06
+
+### Fixed
+- Channels no longer die permanently after PC sleep/resume (the "TV channel
+  stops working until removed and re-added" bug). Root causes fixed:
+  - Cached MMDevice COM objects were reused after resume even though Windows had
+    invalidated them. Every activation (channel outputs and the capture source)
+    now resolves a fresh device by endpoint id (`AudioDevices.FindRenderById`);
+    channels no longer hold a device instance at all, only the id + a presence flag.
+  - A dead output was never detected: `WasapiOut.PlaybackStopped` is now
+    observed (`OutputChannel.PlaybackStopped`), so a channel whose device died
+    shows "Reconnecting..." and is re-opened automatically.
+  - Deactivation on device loss erased the channel's ON state. Channels now keep
+    a persistent "wants active" intent; mechanical stops (device loss, engine
+    restart, sleep, becoming the source) suspend without clearing it, and the
+    3 s watchdog auto-reactivates wanted channels (retry budget 3, reset when
+    the device reappears or after a resume).
+- Resume detection: `SystemEvents.PowerModeChanged` plus a clock-jump fallback
+  (Modern Standby machines often miss the event). On resume the app clears the
+  unstartable-source list, replaces all cached device instances with fresh ones
+  (master volume talks to a live AudioEndpointVolume again), restarts capture
+  and keeps retrying channel re-opens for ~30 s while devices come back staggered.
+- Audio callback stalls: the capture thread no longer takes a lock or writes to
+  the log file while fanning out to outputs (immutable snapshot instead), so a
+  slow disk or a UI-thread add/remove can no longer stutter all channels.
+- EQ adjustments no longer click: `EqualizerProvider.Configure` updates biquad
+  coefficients in place (filter state survives) instead of rebuilding the bank
+  on every fader tick; rebuilds only happen on band-count/low-pass topology
+  changes, and per-tick log spam is gone (structural changes only).
+- `AdaptiveResampler` diagnostic logging removed from the render hot path (it
+  did synchronous file I/O on the WASAPI pull thread); it also returns silence
+  instead of 0 samples if the resampler momentarily produces nothing, so
+  WasapiOut can never mistake a hiccup for end-of-stream.
+- Resource leaks: the 3 s device poll no longer leaks an MMDevice COM wrapper
+  per known device per tick (duplicates disposed); OutputChannel disposes its
+  device; EqWindow unhooks its band-collection event handlers on close (each
+  opened editor used to stay rooted by the channel's EQ model).
+- Robustness: `RestartEngine` catches non-COM exceptions too (a misbehaving
+  device could pop the crash dialog every 3 s from the watchdog); the whole
+  watchdog tick is exception-guarded; master volume/mute reads and writes are
+  guarded against a device dying between ticks; OutputChannel teardown of a
+  dead device can no longer throw out of Dispose.
+
+## 0.5.5 - 2026-07-06
+
+### Added
+- EQ "Bass-only (low-pass)" high-cut: a cascade of low-pass biquads applied on
+  top of the peaking bands. Adjustable cutoff (30-500 Hz) and slope (12 or
+  24 dB/oct). Passes the deep low end and rolls off everything above the cutoff
+  - the correct tool for a bass shaker (keep the rumble, kill the rest), where
+  peaking bells could only dip and never fully remove a range. Persisted per
+  channel (`EqSettings.LowPassEnabled/LowPassHz/LowPassSlope`).
+
+### Changed
+- EQ band faders now cut to -36 dB (was -12). Range is asymmetric: +12 dB boost
+  / -36 dB cut, so a band can be taken nearly out of the mix. `EqBands.MaxGainDb`
+  split into `MaxBoostDb` (12) and `MaxCutDb` (36); the response-curve baseline
+  and limits in the editor were reworked for the off-centre 0 dB.
+
+## 0.5.4 - 2026-06-29
+
+### Fixed
+- Without a scrollbar the app mixer panel had 12px left margin vs 6px right
+  (asymmetric). Reduced the inner Grid left margin from 12px to 6px so both
+  sides are equal (6px) with no scrollbar, and equal (12px) when it is visible.
+  AppPanelWidth adjusted from 244 to 238 to match (6+226+6).
+
+## 0.5.3 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar caused asymmetric row padding: scrollbar took 6px on the
+  right while the left side had no matching gap. Fixed with a three-column
+  AppScrollViewer layout (left spacer | content | scrollbar) where the spacer
+  mirrors the scrollbar width and visibility, keeping rows centred at all times.
+- App mixer scrollbar was always visible even when all rows fit in the viewport.
+  Changed VerticalScrollBarVisibility from Visible to Auto so the bar (and the
+  matching left spacer) collapse when there is nothing to scroll.
+
+## 0.5.2 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar thumb overflowed the 6px rail on both sides because the WPF
+  `ScrollBar` control has a default `MinWidth` (~18px) that overrides the `Width="6"`
+  setter, making the control 18px wide with the thumb stretching to fill it.
+  Fix: added `MinWidth="0"` to AppScrollBar style and gave the thumb's Border an
+  explicit `Width="6" HorizontalAlignment="Center"` so it always matches the 6px rail
+  regardless of the allocated scrollbar width.
+
+## 0.5.1 - 2026-06-29
+
+### Fixed
+- Main content area had 0px left padding vs 12px right padding. Changed main
+  DockPanel margin from `0,12,12,12` to `12,12,12,12` for symmetric spacing.
+
+### Added
+- Focused channel selection (the green dot / tray selector) is now persisted to
+  settings.json and restored on restart. Added `Focused` field to `ChannelDefinition`;
+  `ToggleFocusChannel` calls `Save()` after each change.
+- Taskbar button icon now shows the same green dot overlay as the tray icon when
+  the focused channel is active, using a 32x32 BitmapSource pre-built at startup.
+
+## 0.5.0 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar had asymmetric gaps: 6px on the left (row padding) but 12px
+  on the right (outer Grid right margin). The previous negative-margin trick on the
+  ScrollViewer had no effect because the Grid clips children to its explicit Width.
+  Fix: widened the inner Grid from 220 to 226px and reduced its right margin from
+  12px to 6px so the scrollbar right edge sits 6px from the panel edge, matching the
+  left side. Removed the no-op negative margin from the ScrollViewer.
+
+## 0.4.9 - 2026-06-29
+
+### Changed
+- App mixer scrollbar (AppScrollBar) narrowed from 10px to 6px, matching the
+  global slim scrollbar width.
+
+## 0.4.8 - 2026-06-29
+
+### Fixed
+- App mixer scrollbar thumb was wider than the scrollbar rail due to WPF's default
+  Thumb MinWidth overriding the layout constraint. Added `MinWidth="0"` to the Thumb
+  element and removed the 2px horizontal margins so the thumb fills the rail exactly.
+
+## 0.4.7 - 2026-06-29
+
+### Added
+- Tray-focus selector: a small dot button in each channel header acts as a radio
+  selector (only one channel at a time). When a channel is focused, the tray icon
+  shows a green dot overlay if that channel is ON, and the plain icon when it is
+  OFF. Middle-clicking the tray icon toggles the focused channel on/off.
+
+## 0.4.6 - 2026-06-23
+
+### Fixed
+- App mixer scrollbar now overlays the content (HorizontalAlignment="Right") instead
+  of occupying a separate column. The right gap equals the inner Grid's right margin
+  (same 12px as the left content margin). Removed the 6px left/right margins that
+  were pushing the scrollbar out of the column alignment.
+
+## 0.4.5 - 2026-06-23
+
+### Fixed
+- App mixer scrollbar clipped: inner Grid had Width="244" matching the Border's
+  animated width, but WPF adds margin (12px each side) on top of Width, so the
+  Grid overflowed 12px to the right and the scrollbar was hidden behind the
+  Border's ClipToBounds. Changed Width to 220 (244 - 2*12) so the Grid fits
+  exactly within the Border when fully open.
+
+## 0.4.4 - 2026-06-23
+
+### Fixed
+- Right gap when panel is closed: AppPanel.Margin.Right now animates 0->6 on
+  open and 6->0 on close (ThicknessAnimation in code-behind). Initial XAML value
+  changed to "6,0,0,0" so the closed state has a single S=6 gap to the main
+  content (AppPanel.Margin.Left) rather than L=12.
+- Chevron icon off-center: path data changed from "M15 5l-7 7 7 7" (origin at
+  x=15) to "M7 0 L0 7 L7 14" (origin at 0,0). Both natural and 180-rotated
+  states are now symmetrically centered in the Viewbox.
+
+## 0.4.3 - 2026-06-23
+
+### Changed
+- Toggle/panel spacing: AppMixerRegion left 12->6 (S), AppPanel Margin 6,0,6,0 (S
+  each side of the card when open), main DockPanel left 6->0 (AppPanel right margin
+  now owns the 6 px gap to the channels).
+
+## 0.4.2 - 2026-06-23
+
+### Changed
+- Toggle button spacing: left edge to window = L (12 px); right edge to first
+  channel card = S (6 px). Achieved by zeroing all internal margins on the toggle
+  button and AppPanel, removing the AppMixerRegion right margin, and setting the
+  main DockPanel left margin to 6 px.
+
+## 0.4.1 - 2026-06-23
+
+### Changed
+- App mixer scrollbar: permanent #3C4E68 track always visible; white thumb appears
+  only when content overflows (custom AppScrollViewer + AppScrollBar styles). Track
+  column = 12 px = S/2 (3 px) padding + 6 px rail + S/2 (3 px) padding.
+- Drag handle: added 3 px (S/2) right margin, separating it from the app icon.
+- App icons: removed #22FFFFFF background overlay; icon Image now direct (no Border
+  wrapper). Size increased 26 -> 30 px; column width updated to match.
+- AudioHQ removed from its own mixer list (filtered by current process ID on refresh).
+
+## 0.4.0 - 2026-06-23
+
+### Changed
+- Spacing system normalised to two sizes throughout the app: S=6 px, L=12 px.
+  All paddings and margins now use one of these two values only.
+  - Outer window DockPanel margin: 14 -> 12 (L)
+  - Header StackPanel bottom margin: 10 -> 12 (L)
+  - Notification border top margin: 8 -> 6 (S)
+  - AppMixerRegion top/bottom margin: 14 -> 12 (L); left: 4 -> 6 (S)
+  - Inner panel grid margin: 12,10,12,10 -> 12,12,12,12 (all L) - fixes last-row
+    clip by the panel's 12 px corner radius
+  - Refresh button bottom margin: 8 -> 6 (S)
+  - App row padding: right 8 -> 6 (S, now equal left/right); bottom margin 4 -> 6 (S)
+  - Name TextBlock horizontal margins: 7,4 -> 6,6 (S both sides)
+  - Pin button right margin: 3 -> 6 (S)
+  - Volume slider margin: 7,4 -> 6,6 (S both sides)
+- Drag-handle dots icon: Canvas height 48 -> 18 px so the dots centre vertically
+  at app-icon height instead of sitting near the top of the row.
+- Scrollbar track colour: ButtonBrush (#2D3545) -> #3C4E68 for better contrast
+  against CardBrush (#222834). Left margin: 4 -> 6 px (S).
+
+## 0.3.9 - 2026-06-23
+
+### Changed
+- App mixer scrollbar: styled dark - ButtonBrush track with 4 px top/bottom insets,
+  TextBrush thumb; 4 px left margin separates the rail from row content; right side
+  is already padded by the panel grid margin (12 px). Applies globally.
+- App row right controls: pin button now has a 3 px right margin before the vol%
+  text for visual separation (order remains: pin - vol% - mute).
+
+## 0.3.8 - 2026-06-23
+
+### Changed
+- App mixer panel: removed the "Apps" header label to gain one extra row of height.
+- App mixer panel: scrollbar height constraint fixed - the panel now properly fills
+  the window height so `VerticalScrollBarVisibility="Auto"` triggers when needed.
+- Toggle button: chevron now centered in a Viewbox (equal margins, crisp at all DPIs).
+- App row layout restructured: left column holds a **pin button** (top) and a
+  **drag-handle** dots icon (bottom); app icon enlarged to 26x26 px; mute toggle
+  remains on the right; pin button moved from the right to the left column.
+- Drag-and-drop animation improved: dragging now shows a rounded ghost snapshot of
+  the row (with a drop shadow) that follows the cursor; the source row is dimmed
+  to 35% opacity while dragging; the drop target row shows a blue top-border
+  insertion indicator; a custom `DragAdorner` (new class) drives the ghost.
+
+## 0.3.7 - 2026-06-22
+
+### Added
+- Per-app mixer rows can now be **pinned to the top** (pin button) and
+  **dragged to reorder** (grab a row by its icon). Pinned rows are kept above
+  unpinned ones and get a faint blue tint; reordering is confined to a row's pin
+  group. Rows slide smoothly to their new position via `FluidMoveBehavior`
+  (new dependency: `Microsoft.Xaml.Behaviors.Wpf`). The order survives refreshes -
+  a refresh updates rows in place and appends only newly-seen apps at the bottom.
+
+### Changed
+- The app-mixer rail chevron direction is reversed: it points left (`<`) when the
+  panel is collapsed and right (`>`) when it is open.
+
+## 0.3.6 - 2026-06-22
+
+### Added
+- Slide-out per-application mixer on the left. A chevron rail opens a panel that
+  lists the apps currently playing on the default output device (the same set as
+  the Windows volume mixer), each with its icon, a horizontal volume slider and a
+  mute toggle. These drive each app's own Windows volume - fully independent of
+  the mirror strips and the MASTER. The list refreshes when the panel opens, when
+  the window is brought to the front, and from a manual refresh button. New engine
+  module `AppSession` / `AppSessions` (WASAPI Audio Session API), with UI in
+  `AppMixerViewModel` / `AppSessionViewModel` and `AppIcon` for icon extraction.
+
 ## 0.3.5 - 2026-06-18
 
 ### Changed
