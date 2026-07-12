@@ -3,6 +3,14 @@
 All notable changes to AudioHQ. One entry per version bump
 (see CLAUDE.md "Versioning" - patch bump on every edit batch).
 
+## 0.5.4 - 2026-07-12
+
+### Changed
+- Rewrote the GitHub README around the current routing, detachable app mixer,
+  per-output EQ/presets, recovery, persistence, and coordinated-window features.
+- Replaced the README hero image with the current detached-mixer and EQ screenshot.
+- Prepared the self-contained Windows portable release and release notes.
+
 ## 0.5.3 - 2026-07-12
 
 ### Changed

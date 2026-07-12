@@ -1,13 +1,15 @@
 ﻿# AudioHQ
 
-A small Windows audio mirror and mixer. Pick one output device as the source,
-and AudioHQ captures everything playing on it (WASAPI loopback) and mirrors that
-stream to any number of other output devices - each with its own volume slider.
-One source, many outputs, per-device volume. Like a small hardware monitor
-controller, in software.
+AudioHQ is a compact Windows audio router, output mixer, per-application volume
+controller, and equalizer. Choose one playback device as the source and mirror its
+audio to multiple outputs at once, with independent gain, mute, activation, and EQ
+for every destination.
+
+It is designed like a small desktop monitor controller: fast to operate, resilient
+to device changes, and fully portable.
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="AudioHQ window: a MASTER strip and an output strip with faders" width="460">
+  <img src="docs/screenshot.png" alt="AudioHQ with a detached application mixer and a six-band equalizer" width="900">
 </p>
 
 > **Stack:** .NET 7, C#, WPF (hand-rolled MVVM), NAudio 2.3. Windows only.
@@ -19,18 +21,39 @@ Windows lets you play to one output device at a time. AudioHQ removes that limit
 - Play music on your desk speakers and your headphones at the same time.
 - Send the same audio to a second room or a second amp.
 - Keep a Bluetooth headset and a wired DAC in sync, with independent volume each.
+- Control individual application volumes without opening the Windows mixer.
+- Shape every mirrored output independently with graphic EQ and bass-only filtering.
+
+## Highlights in 0.5
+
+- A detachable application mixer that can be docked, floated, resized, hidden, and
+  restored while preserving pin state and application order.
+- A per-output 3-band or 6-band equalizer with adjustable Q, response visualization,
+  bass-only low-pass filtering, and named presets.
+- Automatic EQ preset loading, clear unsaved-state labels, one-click reset, and safe
+  overwrite/delete actions.
+- Coordinated desktop windows: AudioHQ, EQ, Options, and the detached mixer hide,
+  restore, close, and move as one application group.
+- Automatic source/device recovery, clearer status reporting, and expanded automated
+  regression coverage.
 
 ## Features
 
 - **Mirror one source to many outputs.** Capture any active render device and fan
   it out to as many other devices as you like.
 - **Per-output volume.** Every output is a strip with an ON/OFF mirror toggle and
-  a gain fader (0-200%, unity at 100%, colour-zoned green/amber/red).
+  a gain fader (0-200%, unity at 100%, colour-zoned green/amber/red). Add, remove,
+  rename, reorder, and horizontally scroll larger channel sets.
 - **Master strip.** Controls the Windows volume of the *source* device directly.
-- **Per-app mixer (slide-out).** A left panel that lists the apps currently playing
-  on the default output - the Windows volume mixer, in app - each with its own
-  volume slider and mute. Open it from the chevron rail; it refreshes
-  automatically while the panel is open.
+- **Per-output equalizer.** Open EQ from any channel for 3-band or 6-band control,
+  adjustable bell width (Q), a live response curve, and an optional 12/24 dB/oct
+  bass-only low-pass filter.
+- **Named EQ presets.** Presets are shared across channels, load immediately when
+  selected, identify unsaved edits, and support reset, overwrite, and delete actions.
+- **Dockable per-app mixer.** Control the volume and mute state of applications
+  currently playing on the default output. Pin and reorder apps, dock the mixer into
+  AudioHQ or float it beside the main window, resize it up to ten visible rows, and
+  hide/show it from the chevron rail. Layout and dock state persist across restarts.
 - **Adaptive drift compensation.** Independent device clocks normally let the delay
   slowly creep until an audible re-sync jump. AudioHQ continuously nudges each
   output's resample ratio (by a fraction of a percent - inaudible) to hold the
@@ -38,9 +61,13 @@ Windows lets you play to one output device at a time. AudioHQ removes that limit
   wireless sources that deliver audio in large chunks.
 - **Latency presets.** Ultra 15 ms / Low 30 ms / Balanced 60 ms / Safe 100 ms.
 - **Curated, persistent channels.** Add or remove outputs, rename them
-  (double-click), and drag to reorder. Your set is saved to `settings.json`.
+  (double-click), and drag to reorder. Channels, gains, activation, focus, EQ,
+  presets, mixer layout, and window placement are saved to `settings.json`.
+- **Automatic recovery.** AudioHQ refreshes device state, recovers after resume,
+  restores preferred sources when they return, and retries interrupted channels.
 - **System tray.** Close or minimize to the tray, single-click the tray icon to
-  show/hide the window, and hover it to see which outputs are ON and which are OFF.
+  hide/restore the complete AudioHQ window group, and hover it to see which outputs
+  are ON and which are OFF.
 - **Run with Windows.** Optional per-user startup entry.
 - **Honest error states.** Exclusive-mode lock, unsupported format and unplugged
   devices each surface as a clear per-strip status instead of a crash.
@@ -85,7 +112,7 @@ and keeps nothing in `%AppData%`:
 ```
 AudioHQ-<version>-win-x64/
 |-- AudioHQ.exe
-|-- settings.json     source, channels, gains and options
+|-- settings.json     source, channels, EQ, mixer layout and options
 `-- audiohq.log       runtime log
 ```
 
