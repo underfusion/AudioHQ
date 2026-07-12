@@ -1,7 +1,7 @@
 ﻿# AudioHQ - Technical Architecture
 
 > Keep this file truthful to the code. Update it in the same commit as any
-> behavior change it describes (rule: CLAUDE.md "Documentation").
+> behavior change it describes (repository documentation convention).
 > Last updated: 2026-07-09 (v0.8.3).
 
 ## Solution layout

@@ -52,7 +52,7 @@ events, and visual resources into smaller named units without changing behavior.
   persistence and watchdog behavior during CP1.
 - `README.md` and `docs/ARCHITECTURE.md` diagrams were normalized to plain ASCII
   after mojibake box-drawing characters were found.
-- `Directory.Build.props` now matches `CLAUDE.md` on patch rollover: patch bumps
+- `Directory.Build.props` now matches the repository versioning convention: patch bumps
   happen every edit batch, `0.x.9` rolls to `0.(x+1).0`, and major bumps require
   explicit user approval.
 - Automatic app-session refresh is a UI-thread `DispatcherTimer`; if session
@@ -99,7 +99,7 @@ events, and visual resources into smaller named units without changing behavior.
 
 ## Definition Of Done For Each Checkpoint
 
-- Version bumped according to `CLAUDE.md`.
+- Version bumped according to the repository versioning convention.
 - `CHANGELOG.md` updated.
 - `docs/ARCHITECTURE.md` reviewed and updated when behavior or structure changed.
 - `docs/REFACTOR_PLAN.md` checkpoint percentage updated.

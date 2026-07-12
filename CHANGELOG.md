@@ -1,7 +1,16 @@
 # Changelog
 
 All notable changes to AudioHQ. One entry per version bump
-(see CLAUDE.md "Versioning" - patch bump on every edit batch).
+(see the repository versioning conventions - patch bump on every edit batch).
+
+## 0.5.5 - 2026-07-12
+
+### Changed
+- Removed local-only development metadata from the public repository while keeping
+  it available in ignored local files.
+- Expanded `.gitignore` coverage for local editor/tool state and generated test
+  results while keeping the full test source project tracked.
+- Reworded public documentation to reference neutral repository conventions.
 
 ## 0.5.4 - 2026-07-12
 
@@ -772,8 +781,8 @@ disappears.
 - Licensed under MIT (was "private, all rights reserved"). Added a `LICENSE`
   file and updated the README license section. Fully permissive: use, modify,
   distribute and sell, keep the copyright notice, no warranty.
-- Removed `CLAUDE.md` (internal AI-agent instructions) from the public repo and
-  added it to `.gitignore`; dropped its now-dead link from the README.
+- Removed local development instructions from the public repo, added them to
+  `.gitignore`, and dropped the now-dead link from the README.
 
 ## 0.2.6 - 2026-06-11
 
@@ -1018,7 +1027,7 @@ Baseline release: first versioned state of the project.
 - `AudioHQ.Cli`: console tester (mirror the default output to a chosen device).
 - Central version in `Directory.Build.props` (`AppVersion` helper surfaces it
   in the window title and CLI banner).
-- Documentation package: README, CLAUDE.md (project rules: versioning,
-  file-structure, git, language), docs/ARCHITECTURE.md, this changelog.
+- Documentation package: README, repository conventions (versioning,
+  file structure, git, language), docs/ARCHITECTURE.md, this changelog.
 - `.gitignore` extended with .NET build artifacts (`bin/`, `obj/`, `.vs/`)
-  and local agent files.
+  and local tooling files.
