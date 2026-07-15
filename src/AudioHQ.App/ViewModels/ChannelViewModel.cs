@@ -32,15 +32,19 @@ public sealed class ChannelViewModel : ViewModelBase
     private bool _isFocused;
     private string _status = "";
 
-    /// <summary>Stable persisted identity of the target device.</summary>
-    public string DeviceId { get; }
+    /// <summary>Current Windows identity of the target device.</summary>
+    public string DeviceId { get; private set; }
+
+    /// <summary>Last known Windows friendly name, separate from the editable channel label.</summary>
+    public string DeviceName { get; private set; }
 
     public ChannelViewModel(MirrorEngine engine, string deviceId, bool present,
         string name, double gain, Func<int> latencyMs, Action onChanged,
-        EqPresetStore presets, EqSettings? eq = null)
+        EqPresetStore presets, EqSettings? eq = null, string? deviceName = null)
     {
         _engine = engine;
         DeviceId = deviceId;
+        DeviceName = string.IsNullOrWhiteSpace(deviceName) ? name : deviceName;
         _isPresent = present;
         _onChanged = onChanged;
         _presets = presets;
@@ -295,6 +299,23 @@ public sealed class ChannelViewModel : ViewModelBase
         RefreshUnavailableStatus();
     }
 
+    /// <summary>Adopt a replacement endpoint id for the same uniquely named physical output.</summary>
+    public void RebindDevice(string deviceId, string deviceName)
+    {
+        if (deviceId == DeviceId) return;
+        Suspend();
+        Log.Write($"Channel '{Name}': rebound endpoint '{DeviceId}' -> '{deviceId}' ({deviceName})");
+        DeviceId = deviceId;
+        DeviceName = deviceName;
+        _activation.RebindDevice(deviceId);
+        _isPresent = true;
+        _retryBudget.Reset();
+        OnPropertyChanged(nameof(DeviceId));
+        OnPropertyChanged(nameof(DeviceName));
+        OnPropertyChanged(nameof(IsAvailable));
+        RefreshUnavailableStatus();
+    }
+
     private void RefreshUnavailableStatus()
     {
         if (_isSource) Status = "= source";
@@ -305,6 +326,7 @@ public sealed class ChannelViewModel : ViewModelBase
     public ChannelDefinition ToDefinition() => new()
     {
         DeviceId = DeviceId,
+        DeviceName = DeviceName,
         Name = _name,
         Gain = _gain,
         Active = _wantsActive,

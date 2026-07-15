@@ -16,8 +16,10 @@ public sealed class MixerSettingsSerializationTests
             LatencyMs = 60,
             CloseToTray = true,
             MinimizeToTray = true,
+            LaunchMinimized = true,
             RunWithWindows = true,
             AppMixerDetached = true,
+            AppMixerExpanded = true,
             MainWindowLeft = 240,
             MainWindowTop = 120,
             Channels =
@@ -25,6 +27,7 @@ public sealed class MixerSettingsSerializationTests
                 new ChannelDefinition
                 {
                     DeviceId = "device-1",
+                    DeviceName = "Headphones (USB Audio)",
                     Name = "Headphones",
                     Gain = 1.25,
                     Active = true,
@@ -69,12 +72,15 @@ public sealed class MixerSettingsSerializationTests
         Assert.Equal(60, restored.LatencyMs);
         Assert.True(restored.CloseToTray);
         Assert.True(restored.MinimizeToTray);
+        Assert.True(restored.LaunchMinimized);
         Assert.True(restored.RunWithWindows);
         Assert.True(restored.AppMixerDetached);
+        Assert.True(restored.AppMixerExpanded);
         Assert.Equal(240, restored.MainWindowLeft);
         Assert.Equal(120, restored.MainWindowTop);
         Assert.Single(restored.Channels);
         Assert.Equal("Headphones", restored.Channels[0].Name);
+        Assert.Equal("Headphones (USB Audio)", restored.Channels[0].DeviceName);
         Assert.True(restored.Channels[0].Active);
         Assert.True(restored.Channels[0].Focused);
         Assert.Equal(new[] { 1.0, 0.0, -3.0 }, restored.Channels[0].Eq!.GainsDb);

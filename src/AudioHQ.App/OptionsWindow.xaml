@@ -30,6 +30,8 @@
                   IsChecked="{Binding TrayOptions.CloseToTray}" Margin="0,0,0,6" Cursor="Hand" />
         <CheckBox Content="Minimize to system tray" Foreground="{StaticResource TextBrush}"
                   IsChecked="{Binding TrayOptions.MinimizeToTray}" Margin="0,0,0,6" Cursor="Hand" />
+        <CheckBox Content="Launch minimized to system tray" Foreground="{StaticResource TextBrush}"
+                  IsChecked="{Binding TrayOptions.LaunchMinimized}" Margin="0,0,0,6" Cursor="Hand" />
         <CheckBox Content="Run with Windows" Foreground="{StaticResource TextBrush}"
                   IsChecked="{Binding TrayOptions.RunWithWindows}" Cursor="Hand" />
 

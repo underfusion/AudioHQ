@@ -221,8 +221,7 @@ public sealed class MixerSourceRecoveryViewModel
                 _sources.Add(device);
             }
 
-        foreach (var channel in _channels)
-            channel.SetPresent(fresh.ContainsKey(channel.DeviceId));
+        RebindAndUpdateChannelPresence();
 
         _sourceChanged();
     }
@@ -322,8 +321,39 @@ public sealed class MixerSourceRecoveryViewModel
             }
         }
 
+        RebindAndUpdateChannelPresence();
+    }
+
+    private void RebindAndUpdateChannelPresence()
+    {
+        var endpoints = _sources.Select(d => new AudioEndpointIdentity(d.ID, d.FriendlyName)).ToList();
+        var activeIds = endpoints.Select(endpoint => endpoint.Id).ToHashSet();
+        var reservedIds = _channels
+            .Where(channel => activeIds.Contains(channel.DeviceId))
+            .Select(channel => channel.DeviceId)
+            .ToHashSet();
+        bool rebound = false;
+
         foreach (var channel in _channels)
-            channel.SetPresent(currentIds.Contains(channel.DeviceId));
+        {
+            if (!activeIds.Contains(channel.DeviceId))
+            {
+                string? replacementId = AudioEndpointIdentityResolver.Resolve(
+                    channel.DeviceId, channel.DeviceName, endpoints, reservedIds);
+                if (replacementId is not null)
+                {
+                    var replacement = _sources.First(device => device.ID == replacementId);
+                    channel.RebindDevice(replacement.ID, replacement.FriendlyName);
+                    reservedIds.Add(replacement.ID);
+                    rebound = true;
+                }
+            }
+
+            channel.IsSource = channel.DeviceId == SelectedSource?.ID;
+            channel.SetPresent(activeIds.Contains(channel.DeviceId));
+        }
+
+        if (rebound) _save();
     }
 
     private MMDevice? ResolveSource()

@@ -3,6 +3,26 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.7 - 2026-07-15
+
+### Fixed
+- The app mixer now restores its exact layout state after restart: attached and
+  expanded, attached and collapsed, or detached. The chosen state also survives
+  minimizing to and restoring from the system tray.
+
+## 0.5.6 - 2026-07-15
+
+### Fixed
+- Saved output channels now recover automatically when Windows recreates an HDMI or
+  USB endpoint under a new id, using a unique last-known device-name match without
+  changing the channel's label, gain, EQ, order, ON intent, or tray focus.
+- If the replacement endpoint was already added manually, startup migration keeps
+  the original configured strip and removes the redundant replacement strip.
+
+### Added
+- Added a persisted "Launch minimized to system tray" option that starts AudioHQ
+  without showing its main window, including when launched with Windows.
+
 ## 0.5.5 - 2026-07-12
 
 ### Changed

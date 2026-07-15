@@ -13,7 +13,7 @@ public sealed record ChannelActivationResult(OutputChannel? Channel, bool Device
 public sealed class ChannelActivationService
 {
     private readonly MirrorEngine _engine;
-    private readonly string _deviceId;
+    private string _deviceId;
     private readonly Func<int> _latencyMs;
 
     public ChannelActivationService(MirrorEngine engine, string deviceId, Func<int> latencyMs)
@@ -22,6 +22,8 @@ public sealed class ChannelActivationService
         _deviceId = deviceId;
         _latencyMs = latencyMs;
     }
+
+    public void RebindDevice(string deviceId) => _deviceId = deviceId;
 
     public ChannelActivationResult Activate(
         string channelName,

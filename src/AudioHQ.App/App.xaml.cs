@@ -21,6 +21,13 @@ namespace AudioHQ.App
             };
 
             base.OnStartup(e);
+
+            var window = new MainWindow();
+            MainWindow = window;
+            if (window.LaunchMinimized)
+                Log.Write("Startup: main window kept hidden in system tray");
+            else
+                window.Show();
         }
     }
 }

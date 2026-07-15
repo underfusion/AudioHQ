@@ -28,13 +28,15 @@ public sealed class MixerTrayOptionsViewModelTests
 
         options.CloseToTray = true;
         options.MinimizeToTray = true;
+        options.LaunchMinimized = true;
         options.RunWithWindows = true;
         options.RunWithWindows = true;
 
         Assert.True(settings.CloseToTray);
         Assert.True(settings.MinimizeToTray);
+        Assert.True(settings.LaunchMinimized);
         Assert.True(settings.RunWithWindows);
-        Assert.Equal(3, saves);
+        Assert.Equal(4, saves);
         Assert.Equal(new[] { true }, registered);
     }
 }

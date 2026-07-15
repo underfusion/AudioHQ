@@ -49,6 +49,7 @@ public sealed class MixerChannelCollectionViewModel : ViewModelBase
     public void Build(IReadOnlyList<ChannelDefinition> persistedDefinitions, string? sourceId)
     {
         Channels.Clear();
+        _focusedChannel = null;
 
         var definitions = persistedDefinitions;
         if (definitions.Count == 0)
@@ -57,35 +58,69 @@ public sealed class MixerChannelCollectionViewModel : ViewModelBase
             definitions = _sources.Where(d => d.ID != sourceId)
                                   .Select(d => new ChannelDefinition
                                   {
-                                      DeviceId = d.ID,
+                                       DeviceId = d.ID,
+                                      DeviceName = d.FriendlyName,
                                       Name = d.FriendlyName,
                                       Gain = 1.0,
                                   })
                                   .ToList();
         }
 
+        var endpoints = _sources.Select(d => new AudioEndpointIdentity(d.ID, d.FriendlyName)).ToList();
+        var reservedIds = new HashSet<string>();
+        ChannelViewModel? focusedChannel = null;
         foreach (var definition in definitions)
         {
-            bool present = _sources.Any(d => d.ID == definition.DeviceId);
-            var vm = new ChannelViewModel(_engine, definition.DeviceId, present, definition.Name, definition.Gain,
-                _latencyMs, _markDirty, _eqPresets, definition.Eq)
+            string recoveryName = string.IsNullOrWhiteSpace(definition.DeviceName)
+                ? definition.Name
+                : definition.DeviceName;
+            string? resolvedId = AudioEndpointIdentityResolver.Resolve(
+                definition.DeviceId, recoveryName, endpoints, reservedIds);
+            if (resolvedId is null
+                && reservedIds.Contains(definition.DeviceId)
+                && endpoints.Any(endpoint => endpoint.Id == definition.DeviceId))
             {
-                IsSource = definition.DeviceId == sourceId,
+                // The stale strip earlier in the saved order already adopted this endpoint.
+                // This later exact-id entry can only be the replacement the user added manually.
+                Log.Write($"Channel '{definition.Name}': removed duplicate endpoint '{definition.DeviceId}' during recovery");
+                if (definition.Focused)
+                    focusedChannel = Channels.FirstOrDefault(channel => channel.DeviceId == definition.DeviceId);
+                _markDirty();
+                continue;
+            }
+
+            var liveDevice = resolvedId is null ? null : _sources.First(d => d.ID == resolvedId);
+            string deviceId = liveDevice?.ID ?? definition.DeviceId;
+            string deviceName = liveDevice?.FriendlyName ?? recoveryName;
+            bool present = liveDevice is not null;
+            if (present) reservedIds.Add(deviceId);
+
+            if (deviceId != definition.DeviceId)
+            {
+                Log.Write($"Channel '{definition.Name}': restored renamed endpoint '{definition.DeviceId}' -> '{deviceId}' ({deviceName})");
+                _markDirty();
+            }
+            else if (liveDevice is not null && definition.DeviceName != deviceName)
+            {
+                // Migrate settings written before DeviceName was persisted.
+                _markDirty();
+            }
+
+            var vm = new ChannelViewModel(_engine, deviceId, present, definition.Name, definition.Gain,
+                _latencyMs, _markDirty, _eqPresets, definition.Eq, deviceName)
+            {
+                IsSource = deviceId == sourceId,
                 WantsActive = definition.Active,
             };
             Channels.Add(vm);
+            if (definition.Focused) focusedChannel = vm;
         }
 
-        var focusedDefinition = definitions.FirstOrDefault(d => d.Focused);
-        if (focusedDefinition is not null)
+        if (focusedChannel is not null)
         {
-            var channel = Channels.FirstOrDefault(c => c.DeviceId == focusedDefinition.DeviceId);
-            if (channel is not null)
-            {
-                channel.IsFocused = true;
-                _focusedChannel = channel;
-                OnPropertyChanged(nameof(FocusedChannel));
-            }
+            focusedChannel.IsFocused = true;
+            _focusedChannel = focusedChannel;
+            OnPropertyChanged(nameof(FocusedChannel));
         }
     }
 
@@ -101,7 +136,7 @@ public sealed class MixerChannelCollectionViewModel : ViewModelBase
     {
         if (device is null || Channels.Any(c => c.DeviceId == device.ID)) return;
         var vm = new ChannelViewModel(_engine, device.ID, present: true, device.FriendlyName, 1.0,
-            _latencyMs, _markDirty, _eqPresets)
+            _latencyMs, _markDirty, _eqPresets, deviceName: device.FriendlyName)
         {
             IsSource = device.ID == _sourceId(),
         };
