@@ -19,6 +19,8 @@ public partial class MainWindow : Window
     private AppRowDragController? _appRowDrag;
     private AppMixerWindow? _appMixerWindow;
 
+    public bool LaunchMinimized => _viewModel?.TrayOptions.LaunchMinimized == true;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -41,6 +43,7 @@ public partial class MainWindow : Window
             Loaded += (_, _) =>
             {
                 if (_viewModel.Settings.AppMixerDetached) DetachAppMixer();
+                else RestoreAttachedAppMixer(_viewModel.Settings.AppMixerExpanded);
             };
 
             _traySync = new MainWindowTraySync(this, _viewModel);
@@ -129,6 +132,18 @@ public partial class MainWindow : Window
     {
         if (_appMixerWindow is null) DetachAppMixer();
         else AttachAppMixer();
+    }
+
+    private void RestoreAttachedAppMixer(bool expanded)
+    {
+        if (_appMixer is null) return;
+        AppPanel.BeginAnimation(WidthProperty, null);
+        AppPanel.BeginAnimation(MarginProperty, null);
+        AppPanel.Width = expanded ? (double)FindResource("AppMixerPanelWidth") : 0;
+        AppPanel.Margin = expanded
+            ? (Thickness)FindResource("AppMixerPanelOpenMargin")
+            : (Thickness)FindResource("AppMixerPanelClosedMargin");
+        _appMixer.IsExpanded = expanded;
     }
 
     private void DetachAppMixer()

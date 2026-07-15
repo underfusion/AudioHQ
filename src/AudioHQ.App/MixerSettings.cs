@@ -10,6 +10,9 @@ namespace AudioHQ.App;
 public sealed class ChannelDefinition
 {
     public string DeviceId { get; set; } = "";
+    // Last known Windows friendly name, used only to recover when an HDMI/USB driver
+    // recreates the same endpoint under a different volatile id.
+    public string DeviceName { get; set; } = "";
     public string Name { get; set; } = "";
     public double Gain { get; set; } = 1.0;
     public bool Active { get; set; }
@@ -43,7 +46,9 @@ public sealed class MixerSettings
     public List<AppMixerDefinition> AppMixerApps { get; set; } = new();
 
     // The app mixer can live inside the main window or in its own panel beside it.
+    // Expanded distinguishes the attached-open and attached-closed states.
     public bool AppMixerDetached { get; set; }
+    public bool AppMixerExpanded { get; set; }
 
     // Last normal main-window position. Null means first launch and uses CenterScreen.
     public double? MainWindowLeft { get; set; }
@@ -55,6 +60,7 @@ public sealed class MixerSettings
     // Tray behaviour (see TrayController). RunWithWindows mirrors the HKCU Run key.
     public bool CloseToTray { get; set; }
     public bool MinimizeToTray { get; set; }
+    public bool LaunchMinimized { get; set; }
     public bool RunWithWindows { get; set; }
 
     private static string FilePath =>

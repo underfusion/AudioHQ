@@ -51,6 +51,8 @@ public sealed class AppMixerViewModel : ViewModelBase, IDisposable
             if (_isExpanded == value) return;
             _isExpanded = value;
             OnPropertyChanged();
+            _settings.AppMixerExpanded = value;
+            _saveSettings();
             if (value)
             {
                 Refresh();

@@ -104,6 +104,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
             _sourceRecovery.RestartEngine(_sourceRecovery.SelectedSource); // also restores the channels saved as ON
 
         _loaded = true;
+        if (_dirty) Save();
 
         // Resume hint. Known to be missed on some Modern Standby machines, hence the
         // clock-jump fallback in HealthCheck.

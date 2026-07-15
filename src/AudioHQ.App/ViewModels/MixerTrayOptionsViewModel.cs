@@ -59,4 +59,16 @@ public sealed class MixerTrayOptionsViewModel : ViewModelBase
             _save();
         }
     }
+
+    public bool LaunchMinimized
+    {
+        get => _settings.LaunchMinimized;
+        set
+        {
+            if (_settings.LaunchMinimized == value) return;
+            _settings.LaunchMinimized = value;
+            OnPropertyChanged();
+            _save();
+        }
+    }
 }
