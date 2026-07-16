@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.29 - 2026-07-16
+
+### Changed
+- Internal: the channel state machine's active-state transitions are now covered by
+  hardware-free tests - a successful open, a suspend while running, an output dying on its
+  own (with the "Reconnecting..." status), and the retry budget refilling after a recovery.
+  Activation results gained a test-only seam to fake a live output. No change in behavior;
+  6 new tests.
+
 ## 0.5.28 - 2026-07-16
 
 ### Changed

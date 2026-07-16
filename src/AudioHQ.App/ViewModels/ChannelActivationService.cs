@@ -6,7 +6,9 @@ namespace AudioHQ.App.ViewModels;
 
 public sealed record ChannelActivationResult(OutputChannel? Channel, bool DeviceMissing, string Status)
 {
-    public bool IsActive => Channel is not null;
+    /// <summary>True when a live output was opened. Init-settable so a fake activation
+    /// service can report success without opening a real WASAPI device.</summary>
+    public bool IsActive { get; init; } = Channel is not null;
 }
 
 /// <summary>

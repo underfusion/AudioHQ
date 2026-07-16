@@ -22,6 +22,13 @@ public sealed class ChannelLifecycleControllerTests
         public Func<ChannelActivationResult> Result { get; set; } =
             () => new ChannelActivationResult(null, DeviceMissing: false, "");
 
+        /// <summary>The stop callback handed to the last Activate - lets a test "unplug" the device.</summary>
+        public Action<OutputChannel, Exception?>? LastPlaybackStopped { get; private set; }
+
+        /// <summary>A successful open, faked: no real device, but the controller sees it as live.</summary>
+        public static ChannelActivationResult Success() =>
+            new(null, DeviceMissing: false, "") { IsActive = true };
+
         public void RebindDevice(string deviceId) => BoundDeviceId = deviceId;
 
         public ChannelActivationResult Activate(
@@ -30,6 +37,7 @@ public sealed class ChannelLifecycleControllerTests
         {
             ActivateCalls++;
             Requests.Add(new ChannelActivationRequest(channelName, gain, muted, eq));
+            LastPlaybackStopped = playbackStopped;
             return Result();
         }
     }
@@ -189,6 +197,93 @@ public sealed class ChannelLifecycleControllerTests
         h.Controller.TryAutoReactivate(available: true, force: false);
 
         Assert.True(h.Activation.ActivateCalls > exhausted, "a returning device should be retried again");
+    }
+
+    [Fact]
+    public void Activate_OnSuccess_MarksTheChannelActive()
+    {
+        var h = new Harness();
+        h.Activation.Result = FakeActivation.Success;
+
+        h.Controller.Activate();
+
+        Assert.True(h.Controller.IsActive);
+        Assert.Equal("", h.Status);
+    }
+
+    [Fact]
+    public void Suspend_OnAnActiveChannel_StopsItAndAnnouncesTheChange()
+    {
+        var h = new Harness();
+        h.Activation.Result = FakeActivation.Success;
+        h.Controller.Activate();
+
+        h.Controller.Suspend();
+
+        Assert.False(h.Controller.IsActive);
+        Assert.Equal(1, h.ActiveChangedCount);
+    }
+
+    [Fact]
+    public void Suspend_WhenAlreadyStopped_StaysQuiet()
+    {
+        var h = new Harness();
+
+        h.Controller.Suspend();
+
+        Assert.Equal(0, h.ActiveChangedCount);
+    }
+
+    [Fact]
+    public void TryAutoReactivate_LeavesARunningChannelAlone()
+    {
+        var h = new Harness();
+        h.Activation.Result = FakeActivation.Success;
+        h.Controller.Activate();
+        int opened = h.Activation.ActivateCalls;
+
+        h.Controller.TryAutoReactivate(available: true, force: true);
+
+        Assert.Equal(opened, h.Activation.ActivateCalls);
+    }
+
+    [Fact]
+    public void PlaybackStopped_SuspendsTheChannelAndAsksToReconnect()
+    {
+        // The output dies on its own (device unplugged / invalidated). The channel must drop
+        // to inactive, announce it, and show the reconnect status - intent stays ON so the
+        // watchdog can bring it back.
+        var h = new Harness();
+        h.Activation.Result = FakeActivation.Success;
+        h.Controller.Activate();
+
+        h.Activation.LastPlaybackStopped!(null!, new InvalidOperationException("device died"));
+
+        Assert.False(h.Controller.IsActive);
+        Assert.Equal(1, h.ActiveChangedCount);
+        Assert.Equal("Reconnecting...", h.Status);
+    }
+
+    [Fact]
+    public void Activate_OnSuccess_RefillsTheRetryBudget()
+    {
+        // Fail until the budget runs out, recover once (forced), then fail again: the
+        // successful open must have granted a fresh budget for the next failure streak.
+        var h = new Harness();
+        h.Activation.Result = () => new ChannelActivationResult(null, DeviceMissing: false, "failed");
+        for (int tick = 0; tick < 20; tick++)
+            h.Controller.TryAutoReactivate(available: true, force: false);
+
+        h.Activation.Result = FakeActivation.Success;
+        h.Controller.TryAutoReactivate(available: true, force: true);
+        Assert.True(h.Controller.IsActive);
+
+        h.Activation.LastPlaybackStopped!(null!, null);
+        h.Activation.Result = () => new ChannelActivationResult(null, DeviceMissing: false, "failed");
+        int beforeRetry = h.Activation.ActivateCalls;
+        h.Controller.TryAutoReactivate(available: true, force: false);
+
+        Assert.Equal(beforeRetry + 1, h.Activation.ActivateCalls);
     }
 
     [Fact]
