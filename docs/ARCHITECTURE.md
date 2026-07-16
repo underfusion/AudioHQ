@@ -140,6 +140,10 @@ the app alive and self-healing:
   every activation (the `OutputChannel` owns and disposes it), and
   `RestartEngine` does the same for the capture source (the engine owns it).
   The instances in `Sources` exist only for the UI (combo box, master volume).
+  Ownership transfers on SUCCESS only: if the `OutputChannel` constructor throws
+  it disposes just the audio client it created and leaves the device to the
+  caller, which is what `ChannelActivationService.CleanUpFailedActivation` does.
+  Disposing it on both sides would over-release the COM object.
 - **Source event path.** `MirrorEngine` subscribes to `RecordingStopped`. An
   unsolicited stop (the handler is detached before an intentional `Stop`) means
   the source endpoint was invalidated: `IsCapturing` goes false and `SourceLost`

@@ -18,7 +18,11 @@ public sealed class OutputChannel : IDisposable
     private bool _muted;
     private volatile bool _disposed;
 
-    /// <summary>The channel OWNS this instance (disposed with the channel).</summary>
+    /// <summary>
+    /// The channel OWNS this instance (disposed with the channel) - but only once the
+    /// constructor has SUCCEEDED. If construction throws, the device is still the caller's
+    /// to dispose.
+    /// </summary>
     public MMDevice Device { get; }
 
     /// <summary>
@@ -76,13 +80,54 @@ public sealed class OutputChannel : IDisposable
         {
             Log.Write($"OutputChannel: event-sync init FAILED: {ex}");
             _out?.Dispose();
-            _out = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: false, latencyMs);
-            _out.Init(_volume);
-            Log.Write("OutputChannel: push-mode init OK");
+            _out = null!;
+            try
+            {
+                _out = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: false, latencyMs);
+                _out.Init(_volume);
+                Log.Write("OutputChannel: push-mode init OK");
+            }
+            catch
+            {
+                // Both modes failed (e.g. a mix format shared mode rejects outright). Nothing owns
+                // this half-built channel, so release the client here or every auto-retry leaks
+                // one IAudioClient.
+                DisposeFailedInit();
+                throw;
+            }
         }
         _out.PlaybackStopped += OnOutPlaybackStopped;
-        _out.Play();
+        try
+        {
+            _out.Play();
+        }
+        catch
+        {
+            DisposeFailedInit();
+            throw;
+        }
         Log.Write($"OutputChannel: playing on '{device.FriendlyName}'");
+    }
+
+    /// <summary>
+    /// Releases the audio client the failed constructor had already created. The caller never
+    /// receives the instance, so nobody else can ever call <see cref="Dispose"/> on it.
+    /// Deliberately leaves <see cref="Device"/> alone: the channel takes ownership of the device
+    /// only once construction SUCCEEDS, so on failure the device is still the caller's to dispose
+    /// (<c>ChannelActivationService.CleanUpFailedActivation</c>). Disposing it here would
+    /// over-release the COM object.
+    /// </summary>
+    private void DisposeFailedInit()
+    {
+        _disposed = true;
+        try
+        {
+            _out?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"OutputChannel '{_deviceName}': failed-init client dispose failed: {ex.Message}");
+        }
     }
 
     private void OnOutPlaybackStopped(object? sender, StoppedEventArgs e)
@@ -142,6 +187,15 @@ public sealed class OutputChannel : IDisposable
         {
             Log.Write($"OutputChannel '{_deviceName}': dispose failed: {ex.Message}");
         }
-        Device.Dispose();
+        // Guarded too: a device that already went away can throw here, and an escaping
+        // exception would skip the rest of the caller's teardown loop.
+        try
+        {
+            Device.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"OutputChannel '{_deviceName}': device dispose failed: {ex.Message}");
+        }
     }
 }

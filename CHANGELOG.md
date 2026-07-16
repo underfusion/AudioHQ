@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.9 - 2026-07-16
+
+### Fixed
+- Repeatedly failing to activate an output no longer accumulates leaked Windows audio
+  objects. When a device rejects both event-sync and push mode, the half-built channel
+  now releases its audio client instead of leaking one per attempt, which auto-retry
+  used to multiply. Disposing a channel also survives a device that has already gone
+  away.
+
 ## 0.5.8 - 2026-07-16
 
 ### Fixed
