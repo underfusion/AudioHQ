@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.33 - 2026-07-16
+
+### Fixed
+- The app-mixer drag ghost's shadow named `Colors.Black` directly in `AppRowDragController`,
+  the last colour defined in code-behind and the only breach of the styling rule added in
+  0.5.32. It now reads `Color.Black` from the palette through `ThemeResources`. The rendered
+  shadow is unchanged; the point is that no colour outside `Colors.xaml` can drift from the
+  theme unnoticed.
+
 ## 0.5.32 - 2026-07-16
 
 ### Documentation

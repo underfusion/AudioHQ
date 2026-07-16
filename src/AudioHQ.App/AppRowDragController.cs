@@ -120,7 +120,7 @@ public sealed class AppRowDragController
                     ShadowDepth = 4,
                     Opacity = 0.55,
                     Direction = 270,
-                    Color = Colors.Black,
+                    Color = ThemeResources.Color("Color.Black"),
                 },
             };
             var clickPos = e.GetPosition(row);

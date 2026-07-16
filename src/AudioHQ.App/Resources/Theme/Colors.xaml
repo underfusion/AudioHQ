@@ -20,6 +20,9 @@
     <Color x:Key="Color.TextPrimary">#FFE2E7F0</Color>
     <Color x:Key="Color.TextMuted">#FF8B93A5</Color>
     <Color x:Key="Color.White">#FFFFFFFF</Color>
+    <!-- Drop shadows only. Not a surface: the palette's darkest fill is Color.Background, and
+         a shadow tinted to it would wash out against the panel it is meant to lift away from. -->
+    <Color x:Key="Color.Black">#FF000000</Color>
 
     <!-- Accents -->
     <Color x:Key="Color.Green">#FF22C55E</Color>
