@@ -3,6 +3,13 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.27 - 2026-07-16
+
+### Fixed
+- Mirroring to a device that expects a different number of channels than the source (for
+  example a 5.1/7.1 output) now says exactly that - "Needs 6ch, source is 2ch" - instead
+  of the unhelpful "Format not supported". Devices that already work are unaffected.
+
 ## 0.5.26 - 2026-07-16
 
 ### Changed

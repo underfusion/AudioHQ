@@ -60,6 +60,10 @@ public sealed class ChannelActivationService : IChannelActivationService
 
     public static string StatusFor(Exception ex) => ex switch
     {
+        // More specific than the 0x88890008 it wraps: name the actual problem, since
+        // "format not supported" gives the user nothing to act on.
+        ChannelCountMismatchException mismatch =>
+            $"Needs {mismatch.DeviceChannels}ch, source is {mismatch.SourceChannels}ch",
         COMException com => (uint)com.HResult switch
         {
             0x8889000A => "In use (exclusive)",

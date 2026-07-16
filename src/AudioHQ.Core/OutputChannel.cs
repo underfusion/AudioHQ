@@ -81,12 +81,22 @@ public sealed class OutputChannel : IDisposable
                 _out.Init(_volume);
                 Log.Write("OutputChannel: push-mode init OK");
             }
-            catch
+            catch (Exception pushEx)
             {
                 // Both modes failed (e.g. a mix format shared mode rejects outright). Nothing owns
                 // this half-built channel, so release the client here or every auto-retry leaks
                 // one IAudioClient.
                 DisposeFailedInit();
+
+                // Diagnose the one cause we can name. Checked only now, AFTER both attempts:
+                // pre-empting on a channel-count difference would reject a driver that would
+                // have accepted the format anyway.
+                if (captureFormat.Channels != mixFormat.Channels)
+                {
+                    Log.Write($"OutputChannel '{_deviceName}': channel-count mismatch - " +
+                              $"source is {captureFormat.Channels}ch, device mix is {mixFormat.Channels}ch");
+                    throw new ChannelCountMismatchException(captureFormat.Channels, mixFormat.Channels, pushEx);
+                }
                 throw;
             }
         }
