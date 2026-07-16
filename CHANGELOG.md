@@ -3,6 +3,19 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.18 - 2026-07-16
+
+### Changed
+- Windows no longer carry their own hard-coded text sizes, colors, corner radii or
+  margins - every one now comes from the shared theme, so the look is adjustable from
+  one place. Options and EQ share one title, section-label and check-box style instead
+  of repeating the same settings.
+- Spacing is now on a consistent 6px rhythm. The Options and EQ dialogs had drifted to
+  ad-hoc gaps (the three Options section labels each used a different one), so a few
+  gaps shift by 1-4px and the sections line up evenly. The main window is unchanged.
+- Corner radii that sat just off the scale are snapped onto it: the ON/MUTE/EQ pills go
+  from 7 to 8, and the small icon buttons from 5 to 6.
+
 ## 0.5.17 - 2026-07-16
 
 ### Changed

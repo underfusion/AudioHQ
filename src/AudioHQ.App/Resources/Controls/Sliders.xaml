@@ -25,7 +25,7 @@
     <!-- Small numeral printed beside a fader tick (the "numbers" on the scale). -->
     <Style x:Key="ScaleLabel" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
-        <Setter Property="FontSize" Value="9" />
+        <Setter Property="FontSize" Value="{StaticResource FontSize.Caption}" />
         <Setter Property="HorizontalAlignment" Value="Left" />
     </Style>
 
@@ -43,14 +43,14 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid Height="18" Background="Transparent" VerticalAlignment="Center">
-                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                        <Border Height="4" CornerRadius="{StaticResource Radius.Sm}" VerticalAlignment="Center"
                                 Background="{StaticResource Brush.Control}" />
                         <Track x:Name="PART_Track">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
                                     <RepeatButton.Template>
                                         <ControlTemplate TargetType="RepeatButton">
-                                            <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                                            <Border Height="4" CornerRadius="{StaticResource Radius.Sm}" VerticalAlignment="Center"
                                                     Background="{StaticResource Brush.AccentPositive}" />
                                         </ControlTemplate>
                                     </RepeatButton.Template>

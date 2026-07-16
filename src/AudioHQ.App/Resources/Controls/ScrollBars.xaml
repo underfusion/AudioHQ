@@ -24,14 +24,14 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
                     <Grid>
-                        <Border Background="{StaticResource Brush.ScrollTrack}" CornerRadius="3"
+                        <Border Background="{StaticResource Brush.ScrollTrack}" CornerRadius="{StaticResource Radius.Sm}"
                                 Width="6" HorizontalAlignment="Center" />
                         <Track x:Name="PART_Track" IsDirectionReversed="True">
                             <Track.Thumb>
                                 <Thumb MinWidth="0">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Border x:Name="Bg" CornerRadius="3"
+                                            <Border x:Name="Bg" CornerRadius="{StaticResource Radius.Sm}"
                                                     Background="{StaticResource Brush.TextPrimary}"
                                                     Width="6" HorizontalAlignment="Center" Margin="0,1" />
                                             <ControlTemplate.Triggers>

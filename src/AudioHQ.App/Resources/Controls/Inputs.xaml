@@ -13,7 +13,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Padding" Value="6,0" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{StaticResource FontSize.BodyStrong}" />
     </Style>
 
     <!-- Inline rename field shown over the channel name while editing. -->
@@ -23,10 +23,18 @@
         <Setter Property="CaretBrush" Value="{StaticResource Brush.TextPrimary}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.AccentInfo}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="{StaticResource FontSize.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- Option check box on a dialog surface. Carries its own bottom gap so a stack of them
+         is evenly spaced without every row repeating a margin. -->
+    <Style x:Key="DialogCheckBox" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+        <Setter Property="Margin" Value="{StaticResource Gap.BottomS}" />
+        <Setter Property="Cursor" Value="Hand" />
     </Style>
 
     <Style x:Key="DarkComboItem" TargetType="ComboBoxItem">
@@ -50,7 +58,7 @@
 
     <Style x:Key="DarkCombo" TargetType="ComboBox">
         <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{StaticResource FontSize.BodyStrong}" />
         <Setter Property="ItemContainerStyle" Value="{StaticResource DarkComboItem}" />
         <Setter Property="Template">
             <Setter.Value>
@@ -60,7 +68,7 @@
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="Bd" Background="{StaticResource Brush.Control}" CornerRadius="6"
+                                    <Border x:Name="Bd" Background="{StaticResource Brush.Control}" CornerRadius="{StaticResource Radius.Md}"
                                             BorderBrush="{StaticResource Brush.BorderAccent}" BorderThickness="1">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -79,13 +87,13 @@
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <ContentPresenter Margin="10,0,26,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                        <ContentPresenter Margin="{StaticResource ComboContentInset}" VerticalAlignment="Center" IsHitTestVisible="False"
                                           Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                           ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
                         <Popup x:Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
                                AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
-                            <Border Background="{StaticResource Brush.ComboPopup}" CornerRadius="6"
+                            <Border Background="{StaticResource Brush.ComboPopup}" CornerRadius="{StaticResource Radius.Md}"
                                     BorderBrush="{StaticResource Brush.BorderAccent}" BorderThickness="1"
                                     MinWidth="{Binding ActualWidth, ElementName=Toggle}" Margin="0,2,0,0">
                                 <ScrollViewer MaxHeight="220">

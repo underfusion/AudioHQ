@@ -3,26 +3,26 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:AudioHQ.App"
         Title="AudioHQ - Equalizer"
-        Background="{StaticResource BgBrush}"
+        Background="{StaticResource Brush.Surface}"
         SizeToContent="WidthAndHeight"
         WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
-    <StackPanel Margin="20" MinWidth="300">
+    <StackPanel Margin="{StaticResource Inset.L}" MinWidth="300">
         <TextBlock Text="{Binding Name, StringFormat='Equalizer - {0}'}"
-                   Foreground="{StaticResource TextBrush}" FontSize="15" FontWeight="Bold"
-                   Margin="0,0,0,14" />
+                   Style="{StaticResource DialogTitle}"
+                   Margin="{StaticResource Gap.BottomM}" />
 
         <DockPanel>
             <CheckBox Content="Enable EQ" DockPanel.Dock="Left" Cursor="Hand"
-                      Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                      Foreground="{StaticResource Brush.TextPrimary}" VerticalAlignment="Center"
                       IsChecked="{Binding Eq.Enabled}" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <RadioButton Content="3 bands" GroupName="bands" Cursor="Hand"
-                             Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                             Foreground="{StaticResource Brush.TextPrimary}" VerticalAlignment="Center"
                              IsChecked="{Binding Eq.Is3Band}" />
-                <RadioButton Content="6 bands" GroupName="bands" Cursor="Hand" Margin="14,0,0,0"
-                             Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                <RadioButton Content="6 bands" GroupName="bands" Cursor="Hand" Margin="{StaticResource Gap.LeftM}"
+                             Foreground="{StaticResource Brush.TextPrimary}" VerticalAlignment="Center"
                              IsChecked="{Binding Eq.Is6Band}" />
             </StackPanel>
         </DockPanel>
@@ -30,7 +30,7 @@
         <!-- Graphic-EQ graph: faders spread evenly across the width, a green 0 dB baseline
              aligned to the fader centres, and a response curve drawn behind them. The
              baseline and curve are rendered in code-behind (see RedrawCurve). -->
-        <Border Margin="0,14,0,0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="14,12">
+        <Border Margin="{StaticResource Gap.TopM}" Background="{StaticResource Brush.SurfaceRaised}" CornerRadius="{StaticResource Radius.Lg}" Padding="{StaticResource Inset.M}">
             <Grid x:Name="GraphArea" Width="360" Height="248">
                 <!-- Curve canvas only spans the fader region; the knobs sit below it. -->
                 <Canvas x:Name="CurveCanvas" ClipToBounds="True" IsHitTestVisible="False"
@@ -45,7 +45,7 @@
                         <DataTemplate>
                             <StackPanel>
                                 <TextBlock Text="{Binding GainText}" TextAlignment="Center"
-                                           Foreground="{StaticResource DimTextBrush}" FontSize="10"
+                                           Foreground="{StaticResource Brush.TextMuted}" FontSize="{StaticResource FontSize.Small}"
                                            Height="18" />
                                 <Slider Orientation="Vertical" Height="150" Width="30"
                                         HorizontalAlignment="Center"
@@ -55,18 +55,18 @@
                                         ToolTip="Double-click to reset to 0 dB"
                                         PreviewMouseLeftButtonDown="BandSlider_PreviewMouseLeftButtonDown" />
                                 <TextBlock Text="{Binding Label}" TextAlignment="Center"
-                                           Foreground="{StaticResource TextBrush}" FontSize="10"
-                                           FontWeight="SemiBold" Margin="0,4,0,0" />
+                                           Foreground="{StaticResource Brush.TextPrimary}" FontSize="{StaticResource FontSize.Small}"
+                                           FontWeight="SemiBold" Margin="{StaticResource Gap.TopXs}" />
                                 <!-- Per-band bell width (Q): drag to set how rounded/sharp the
                                      peak is, double-click resets it. -->
-                                <local:Knob Width="34" Height="34" Margin="0,6,0,0"
+                                <local:Knob Width="34" Height="34" Margin="{StaticResource Gap.TopS}"
                                             HorizontalAlignment="Center"
                                             Minimum="0.3" Maximum="4.0"
                                             Value="{Binding Q, Mode=TwoWay}" Default="{Binding DefaultQ}"
                                             ToolTip="Bandwidth (Q) - drag up for a narrower, sharper bell; down for a wider, rounder one. Double-click to reset." />
                                 <TextBlock Text="Q" TextAlignment="Center"
-                                           Foreground="{StaticResource DimTextBrush}" FontSize="9"
-                                           Margin="0,2,0,0" />
+                                           Foreground="{StaticResource Brush.TextMuted}" FontSize="{StaticResource FontSize.Caption}"
+                                           Margin="{StaticResource Gap.TopXs}" />
                             </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -76,28 +76,28 @@
 
         <!-- Bass-only high-cut: pass the deep low end, roll everything above the cutoff off.
              The right tool for a bass shaker. Applies on top of the peaking bands above. -->
-        <Border Margin="0,12,0,0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="14,10">
+        <Border Margin="{StaticResource Gap.TopM}" Background="{StaticResource Brush.SurfaceRaised}" CornerRadius="{StaticResource Radius.Lg}" Padding="{StaticResource Inset.M}">
             <StackPanel>
                 <DockPanel>
                     <CheckBox Content="Bass-only (low-pass)" DockPanel.Dock="Left" Cursor="Hand"
-                              Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                              Foreground="{StaticResource Brush.TextPrimary}" VerticalAlignment="Center"
                               IsChecked="{Binding Eq.LowPassEnabled}"
                               ToolTip="Cut everything above the cutoff - keep only the low bass for a shaker" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                 IsEnabled="{Binding Eq.LowPassEnabled}">
                         <RadioButton Content="12 dB/oct" GroupName="slope" Cursor="Hand"
-                                     Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                     Foreground="{StaticResource Brush.TextPrimary}" VerticalAlignment="Center"
                                      IsChecked="{Binding Eq.Is12dB}" />
-                        <RadioButton Content="24 dB/oct" GroupName="slope" Cursor="Hand" Margin="12,0,0,0"
-                                     Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                        <RadioButton Content="24 dB/oct" GroupName="slope" Cursor="Hand" Margin="{StaticResource Gap.LeftM}"
+                                     Foreground="{StaticResource Brush.TextPrimary}" VerticalAlignment="Center"
                                      IsChecked="{Binding Eq.Is24dB}" />
                     </StackPanel>
                 </DockPanel>
-                <DockPanel Margin="0,8,0,0" IsEnabled="{Binding Eq.LowPassEnabled}">
+                <DockPanel Margin="{StaticResource Gap.TopS}" IsEnabled="{Binding Eq.LowPassEnabled}">
                     <TextBlock Text="Cutoff" DockPanel.Dock="Left" VerticalAlignment="Center"
-                               Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,0,10,0" />
+                               Foreground="{StaticResource Brush.TextMuted}" FontSize="{StaticResource FontSize.BodyStrong}" Margin="{StaticResource Gap.RightS}" />
                     <TextBlock Text="{Binding Eq.LowPassText}" DockPanel.Dock="Right" VerticalAlignment="Center"
-                               Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource Brush.TextPrimary}" FontSize="{StaticResource FontSize.BodyStrong}" FontWeight="SemiBold"
                                Width="54" TextAlignment="Right" />
                     <Slider Minimum="30" Maximum="500" Value="{Binding Eq.LowPassHz}"
                             VerticalAlignment="Center" IsMoveToPointEnabled="True"
@@ -107,14 +107,15 @@
         </Border>
 
         <!-- Presets: selection loads immediately; Reset reverts unsaved edits to the active preset. -->
-        <TextBlock Text="presets" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,16,0,4" />
+        <TextBlock Text="presets" Style="{StaticResource DialogSectionLabel}"
+                   Margin="{StaticResource Gap.SectionLabel}" />
         <DockPanel>
             <Button x:Name="DeletePresetButton" DockPanel.Dock="Right"
                     Style="{StaticResource DarkButtonDanger}" Content="Delete"
-                    Click="DeletePreset_Click" Width="64" Height="26" Margin="6,0,0,0" />
+                    Click="DeletePreset_Click" Width="64" Height="26" Margin="{StaticResource Gap.LeftS}" />
             <Button x:Name="ResetPresetButton" DockPanel.Dock="Right"
                     Style="{StaticResource DarkButton}" Content="Reset" IsEnabled="False"
-                    Click="ResetPreset_Click" Width="64" Height="26" Margin="6,0,0,0" />
+                    Click="ResetPreset_Click" Width="64" Height="26" Margin="{StaticResource Gap.LeftS}" />
             <Grid>
                 <ComboBox x:Name="PresetCombo" Style="{StaticResource DarkCombo}" Height="26"
                           ItemsSource="{Binding EqPresets.Presets}"
@@ -126,22 +127,22 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 <!-- Overlays the selected name while its live values differ from the saved preset. -->
-                <TextBlock x:Name="PresetStatusLabel" Text="Custom (not saved)" Margin="10,0,26,0"
+                <TextBlock x:Name="PresetStatusLabel" Text="Custom (not saved)" Margin="{StaticResource ComboContentInset}"
                            VerticalAlignment="Center" IsHitTestVisible="False"
-                           Foreground="{StaticResource DimTextBrush}" FontStyle="Italic" FontSize="12"
+                           Foreground="{StaticResource Brush.TextMuted}" FontStyle="Italic" FontSize="{StaticResource FontSize.BodyStrong}"
                            Visibility="Collapsed" />
             </Grid>
         </DockPanel>
-        <DockPanel Margin="0,6,0,0">
+        <DockPanel Margin="{StaticResource Gap.TopS}">
             <Button x:Name="SavePresetButton" DockPanel.Dock="Right"
                     Style="{StaticResource DarkButtonSuccess}" Content="Save preset"
-                    Click="SavePreset_Click" Width="134" Height="26" Margin="6,0,0,0" />
+                    Click="SavePreset_Click" Width="134" Height="26" Margin="{StaticResource Gap.LeftS}" />
             <TextBox x:Name="PresetName" Style="{StaticResource DarkTextBox}" Height="26"
                      ToolTip="New preset name (existing name overwrites)"
                      TextChanged="PresetName_TextChanged" />
         </DockPanel>
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="{StaticResource Gap.TopM}">
             <Button Content="Close" Style="{StaticResource DarkButtonAccent}" Click="Close_Click"
                     Width="80" Height="28" />
         </StackPanel>

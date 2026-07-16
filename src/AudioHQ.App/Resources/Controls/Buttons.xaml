@@ -13,13 +13,13 @@
     <Style x:Key="DarkButton" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
         <Setter Property="Background" Value="{StaticResource Brush.Control}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{StaticResource FontSize.BodyStrong}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="6"
+                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource Radius.Md}"
                             BorderBrush="{StaticResource Brush.BorderAccent}" BorderThickness="1">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
@@ -50,7 +50,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="6"
+                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource Radius.Md}"
                             BorderBrush="{StaticResource Brush.BorderAccent}" BorderThickness="1">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
@@ -85,14 +85,14 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="{StaticResource FontSize.BodyStrong}" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="5">
+                    <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource Radius.Md}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>

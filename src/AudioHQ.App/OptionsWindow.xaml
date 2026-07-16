@@ -2,16 +2,19 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AudioHQ - Options"
-        Background="{StaticResource BgBrush}"
+        Background="{StaticResource Brush.Surface}"
         SizeToContent="WidthAndHeight"
         WindowStartupLocation="Manual"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
-    <StackPanel Margin="20" MinWidth="300">
-        <TextBlock Text="Options" Foreground="{StaticResource TextBrush}"
-                   FontSize="15" FontWeight="Bold" Margin="0,0,0,14" />
+    <!-- Every gap here is a spacing token: the three section labels used to sit on three
+         different margins (0,0,0,4 / 0,14,0,4 / 0,18,0,6) for the same role. -->
+    <StackPanel Margin="{StaticResource Inset.L}" MinWidth="300">
+        <TextBlock Text="Options" Style="{StaticResource DialogTitle}"
+                   Margin="{StaticResource Gap.BottomM}" />
 
-        <TextBlock Text="source" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,0,0,4" />
+        <TextBlock Text="source" Style="{StaticResource DialogSectionLabel}"
+                   Margin="{StaticResource Gap.SectionLabelFirst}" />
         <ComboBox Style="{StaticResource DarkCombo}" Height="28" ItemsSource="{Binding Sources}"
                   SelectedItem="{Binding SelectedSource}">
             <ComboBox.ItemTemplate>
@@ -21,21 +24,24 @@
             </ComboBox.ItemTemplate>
         </ComboBox>
 
-        <TextBlock Text="latency" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,14,0,4" />
+        <TextBlock Text="latency" Style="{StaticResource DialogSectionLabel}"
+                   Margin="{StaticResource Gap.SectionLabel}" />
         <ComboBox Style="{StaticResource DarkCombo}" Height="28" ItemsSource="{Binding LatencyPresets}"
                   SelectedItem="{Binding SelectedLatency}" />
 
-        <TextBlock Text="tray &amp; startup" Foreground="{StaticResource DimTextBrush}" FontSize="12" Margin="0,18,0,6" />
-        <CheckBox Content="Close to system tray" Foreground="{StaticResource TextBrush}"
-                  IsChecked="{Binding TrayOptions.CloseToTray}" Margin="0,0,0,6" Cursor="Hand" />
-        <CheckBox Content="Minimize to system tray" Foreground="{StaticResource TextBrush}"
-                  IsChecked="{Binding TrayOptions.MinimizeToTray}" Margin="0,0,0,6" Cursor="Hand" />
-        <CheckBox Content="Launch minimized to system tray" Foreground="{StaticResource TextBrush}"
-                  IsChecked="{Binding TrayOptions.LaunchMinimized}" Margin="0,0,0,6" Cursor="Hand" />
-        <CheckBox Content="Run with Windows" Foreground="{StaticResource TextBrush}"
-                  IsChecked="{Binding TrayOptions.RunWithWindows}" Cursor="Hand" />
+        <TextBlock Text="tray &amp; startup" Style="{StaticResource DialogSectionLabel}"
+                   Margin="{StaticResource Gap.SectionLabel}" />
+        <CheckBox Content="Close to system tray" Style="{StaticResource DialogCheckBox}"
+                  IsChecked="{Binding TrayOptions.CloseToTray}" />
+        <CheckBox Content="Minimize to system tray" Style="{StaticResource DialogCheckBox}"
+                  IsChecked="{Binding TrayOptions.MinimizeToTray}" />
+        <CheckBox Content="Launch minimized to system tray" Style="{StaticResource DialogCheckBox}"
+                  IsChecked="{Binding TrayOptions.LaunchMinimized}" />
+        <CheckBox Content="Run with Windows" Style="{StaticResource DialogCheckBox}"
+                  IsChecked="{Binding TrayOptions.RunWithWindows}" />
 
         <Button Content="Close" Style="{StaticResource DarkButtonAccent}" Click="Close_Click"
-                Width="80" Height="28" HorizontalAlignment="Right" Margin="0,20,0,0" />
+                Width="80" Height="28" HorizontalAlignment="Right"
+                Margin="{StaticResource Gap.TopM}" />
     </StackPanel>
 </Window>

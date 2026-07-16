@@ -6,10 +6,10 @@
             <!-- Header zone. -->
             <Grid Height="46">
                 <TextBlock Text="MASTER" VerticalAlignment="Top" HorizontalAlignment="Center"
-                           Foreground="{StaticResource TextBrush}" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource Brush.TextPrimary}" FontSize="{StaticResource FontSize.Body}" FontWeight="SemiBold"
                            Height="20" />
                 <TextBlock Text="{Binding Master.Name}" VerticalAlignment="Top" Margin="0,20,0,0"
-                           Foreground="{StaticResource DimTextBrush}" FontSize="10"
+                           Foreground="{StaticResource Brush.TextMuted}" FontSize="{StaticResource FontSize.Small}"
                            TextWrapping="Wrap" TextAlignment="Center"
                            ToolTip="Double-click to rename"
                            MouseLeftButtonDown="MasterName_MouseLeftButtonDown">
@@ -35,7 +35,7 @@
                 <ToggleButton Style="{StaticResource MuteToggle}" IsChecked="{Binding Master.Muted}"
                               ToolTip="Mute the master (the whole mirrored source)" />
                 <ToggleButton Content="EQ" Style="{StaticResource PillToggle}"
-                              Tag="{StaticResource AccentBlue}" IsEnabled="False" />
+                              Tag="{StaticResource Brush.AccentInfo}" IsEnabled="False" />
             </StackPanel>
             <!-- Fader: balance column left = labels column right, so slider is visually centred. -->
             <Grid HorizontalAlignment="Center">
@@ -50,7 +50,7 @@
                      label are pinned to the value=1.0 thumb centre in code-behind
                      (PositionMasterUnityLine). -->
                 <Rectangle x:Name="MasterUnityLine" Grid.Column="1" Width="30" Height="2"
-                           Fill="{StaticResource AccentGreen}"
+                           Fill="{StaticResource Brush.AccentPositive}"
                            VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,20,0,0"
                            IsHitTestVisible="False" />
                 <Slider x:Name="MasterFader" Grid.Column="1" Style="{StaticResource Fader}" Minimum="0" Maximum="1"
@@ -62,7 +62,7 @@
                 </Canvas>
             </Grid>
             <TextBlock Text="{Binding Master.Percent}" HorizontalAlignment="Center"
-                       FontSize="12" FontWeight="Bold"
+                       FontSize="{StaticResource FontSize.BodyStrong}" FontWeight="Bold"
                        Foreground="{Binding Master.Volume, Converter={StaticResource GainToBrush}}" />
         </StackPanel>
     </Border>

@@ -17,6 +17,11 @@
         <sys:Double x:Key="AppMixerPanelWidth">244</sys:Double>
         <Thickness x:Key="MainContentMargin">6,12,12,12</Thickness>
 
+        <!-- Inset of the text inside a DarkCombo (left gutter, right arrow column). EqWindow
+             overlays a label on top of the combo's selection text, so both must use this same
+             value or the overlay sits a few px off the text it replaces. -->
+        <Thickness x:Key="ComboContentInset">10,0,26,0</Thickness>
+
         <!-- LEGACY ALIASES. The palette itself lives in Theme/Colors.xaml and the roles in
              Theme/Semantic.xaml; these keys only forward to it so existing views keep
              working while they migrate. Do not add new ones, and delete each alias once its

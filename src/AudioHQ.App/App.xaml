@@ -17,6 +17,7 @@
                 <ResourceDictionary Source="Resources/Tokens.xaml" />
 
                 <!-- One file per control family. -->
+                <ResourceDictionary Source="Resources/Controls/Text.xaml" />
                 <ResourceDictionary Source="Resources/Controls/Cards.xaml" />
                 <ResourceDictionary Source="Resources/Controls/Buttons.xaml" />
                 <ResourceDictionary Source="Resources/Controls/Toggles.xaml" />
