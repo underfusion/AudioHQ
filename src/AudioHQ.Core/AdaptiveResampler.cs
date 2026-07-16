@@ -20,14 +20,11 @@ namespace AudioHQ.Core;
 /// </summary>
 public sealed class AdaptiveResampler : ISampleProvider
 {
-    // Largest ratio deviation we ever apply (0.5% ~= 8 cents of pitch - inaudible).
-    private const double MaxCorrection = 0.005;
-    // Proportional gain: correction per second of trough error (0.01 s error -> max).
-    private const double Gain = 0.5;
-    // EMA factor applied to the trough each control tick (~5/s) -> ~1 s settling.
-    private const double TroughSmoothing = 0.3;
-    // Hard cap on the fill loop so a pathological ratio can never spin forever.
-    private const int MaxIterations = 8;
+    // Tuning lives in EngineTunables (const, so these still inline into the hot loop).
+    private const double MaxCorrection = EngineTunables.ResamplerMaxCorrection;
+    private const double Gain = EngineTunables.ResamplerGain;
+    private const double TroughSmoothing = EngineTunables.ResamplerTroughSmoothing;
+    private const int MaxIterations = EngineTunables.ResamplerMaxIterations;
 
     private readonly ISampleProvider _source;
     private readonly WdlResampler _resampler;

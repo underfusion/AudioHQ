@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.24 - 2026-07-16
+
+### Changed
+- Internal: the equalizer file was three things at once and is now three files (saved EQ
+  state, the fixed band frequencies, and the live filter chain). The engine's tuning
+  numbers - buffer size, the resync and backlog margins, and the resampler's correction
+  limits - now live in one documented place instead of being scattered as bare literals.
+  Values are unchanged.
+
 ## 0.5.23 - 2026-07-16
 
 ### Changed

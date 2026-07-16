@@ -1,4 +1,4 @@
-﻿using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
@@ -40,24 +40,17 @@ public sealed class OutputChannel : IDisposable
         _deviceName = device.FriendlyName;
 
         var mixFormat = device.AudioClient.MixFormat;
-        // Allow some jitter headroom above the render buffer before resyncing.
-        // Capture delivers ~10ms chunks, so anything above latency + ~25ms is pure added delay.
-        _maxBacklog = TimeSpan.FromMilliseconds(latencyMs + 25);
+        _maxBacklog = TimeSpan.FromMilliseconds(latencyMs + EngineTunables.ResyncMarginMs);
         Log.Write($"OutputChannel: device='{device.FriendlyName}', capture={captureFormat}, deviceMix={mixFormat}, latency={latencyMs}ms, maxBacklog={_maxBacklog.TotalMilliseconds}ms");
 
         _buffer = new BufferedWaveProvider(captureFormat)
         {
             DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromSeconds(2),
+            BufferDuration = TimeSpan.FromSeconds(EngineTunables.BufferSeconds),
         };
 
         int targetRate = mixFormat.SampleRate;
-        // Trough (minimum backlog) the controller steers toward. It must stay ABOVE the
-        // WASAPI pull granularity (~latencyMs per render callback) plus delivery jitter, or
-        // the buffer underruns at the low point and we feed silence (crackle). latency + 5ms
-        // is the trimmed-down margin; still under the hard resync at latency + 25ms so normal
-        // drift never trips it. Raise back toward +10 if a jittery source starts to crackle.
-        double targetBacklogMs = latencyMs + 5.0;
+        double targetBacklogMs = latencyMs + EngineTunables.TargetBacklogMarginMs;
         ISampleProvider pipeline = new AdaptiveResampler(
             _buffer.ToSampleProvider(),
             targetRate,

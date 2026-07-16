@@ -21,7 +21,7 @@ public sealed class LoopbackMirror : IDisposable
         _buffer = new BufferedWaveProvider(_capture.WaveFormat)
         {
             DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromSeconds(2),
+            BufferDuration = TimeSpan.FromSeconds(EngineTunables.BufferSeconds),
         };
 
         ISampleProvider pipeline = _buffer.ToSampleProvider();
