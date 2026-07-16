@@ -104,9 +104,9 @@ public partial class EqWindow : Window
         if (_loadingPreset) return;
 
         if (_activePreset is null || !channel.EqPresets.Presets.Contains(_activePreset))
-            _activePreset = channel.EqPresets.Presets.FirstOrDefault(p => CurveEquals(p.Eq, current));
+            _activePreset = EqPresetMatcher.FindMatching(channel.EqPresets.Presets, current);
 
-        _isPresetDirty = _activePreset is not null && !CurveEquals(_activePreset.Eq, current);
+        _isPresetDirty = EqPresetMatcher.IsDirty(_activePreset, current);
         _syncingPresetSelection = true;
         PresetCombo.SelectedItem = _activePreset;
         _syncingPresetSelection = false;
@@ -132,17 +132,15 @@ public partial class EqWindow : Window
     {
         if (PresetStatusLabel is not null)
         {
-            PresetStatusLabel.Text = _activePreset is null
-                ? "Custom (not saved)"
-                : $"{_activePreset.Name} (not saved)";
+            PresetStatusLabel.Text = EqPresetMatcher.StatusText(_activePreset);
             PresetStatusLabel.Visibility = _activePreset is null || _isPresetDirty
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
         if (ResetPresetButton is not null)
-            ResetPresetButton.IsEnabled = _activePreset is not null && _isPresetDirty;
+            ResetPresetButton.IsEnabled = EqPresetMatcher.CanReset(_activePreset, _isPresetDirty);
         if (DeletePresetButton is not null)
-            DeletePresetButton.IsEnabled = _activePreset is not null && !EqPresetStore.IsDefault(_activePreset);
+            DeletePresetButton.IsEnabled = EqPresetMatcher.CanDelete(_activePreset);
         UpdatePresetSaveAction();
     }
 
@@ -151,38 +149,10 @@ public partial class EqWindow : Window
     private void UpdatePresetSaveAction()
     {
         if (SavePresetButton is null || PresetName is null) return;
-        bool willOverwrite = CanOverwriteSelectedPreset();
-        SavePresetButton.Content = willOverwrite ? "Overwrite preset" : "Save preset";
-    }
-
-    private bool CanOverwriteSelectedPreset() =>
-        string.IsNullOrWhiteSpace(PresetName.Text) &&
-        _isPresetDirty &&
-        _activePreset is not null &&
-        !EqPresetStore.IsDefault(_activePreset);
-
-    /// <summary>True when two complete preset states match.</summary>
-    private static bool CurveEquals(EqSettings a, EqSettings b)
-    {
-        if (a.Enabled != b.Enabled) return false;
-        int bands = a.Bands == 6 ? 6 : 3;
-        if (bands != (b.Bands == 6 ? 6 : 3)) return false;
-        double defaultQ = EqBands.Q(bands);
-        for (int i = 0; i < bands; i++)
-        {
-            double ga = i < a.GainsDb.Length ? a.GainsDb[i] : 0.0;
-            double gb = i < b.GainsDb.Length ? b.GainsDb[i] : 0.0;
-            if (Math.Abs(ga - gb) > 0.05) return false;
-
-            double qa = a.QValues is not null && i < a.QValues.Length && a.QValues[i] > 0 ? a.QValues[i] : defaultQ;
-            double qb = b.QValues is not null && i < b.QValues.Length && b.QValues[i] > 0 ? b.QValues[i] : defaultQ;
-            if (Math.Abs(qa - qb) > 0.01) return false;
-        }
-        if (a.LowPassEnabled != b.LowPassEnabled) return false;
-        if (a.LowPassEnabled &&
-            (Math.Abs(a.LowPassHz - b.LowPassHz) > 0.5 || a.LowPassSlope != b.LowPassSlope))
-            return false;
-        return true;
+        SavePresetButton.Content =
+            EqPresetMatcher.CanOverwrite(PresetName.Text, _activePreset, _isPresetDirty)
+                ? "Overwrite preset"
+                : "Save preset";
     }
 
     private void RedrawLater() =>
@@ -289,7 +259,9 @@ public partial class EqWindow : Window
         string typedName = PresetName.Text.Trim();
         string targetName = typedName.Length > 0
             ? typedName
-            : CanOverwriteSelectedPreset() ? _activePreset!.Name : "";
+            : EqPresetMatcher.CanOverwrite(PresetName.Text, _activePreset, _isPresetDirty)
+                ? _activePreset!.Name
+                : "";
         var saved = channel.EqPresets.Save(targetName, channel.Eq.ToSettings());
         if (saved is null) return;
         _activePreset = saved;

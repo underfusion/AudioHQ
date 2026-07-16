@@ -3,6 +3,13 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.20 - 2026-07-16
+
+### Changed
+- Internal: the EQ preset rules (which preset the current curve matches, whether it has
+  unsaved edits, and whether Save overwrites or creates) moved out of the EQ window into
+  a separate tested class. No change in behavior; 15 new tests cover it.
+
 ## 0.5.19 - 2026-07-16
 
 ### Changed
