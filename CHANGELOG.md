@@ -3,6 +3,12 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.19 - 2026-07-16
+
+### Changed
+- Removed the twelve migration-only color aliases now that nothing uses them. Every
+  brush in the app is reached through its theme role, leaving one way to do it.
+
 ## 0.5.18 - 2026-07-16
 
 ### Changed

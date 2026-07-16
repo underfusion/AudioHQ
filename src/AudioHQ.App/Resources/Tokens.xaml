@@ -1,41 +1,36 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<!--
+    Converters and layout geometry that is specific to one region rather than part of the
+    shared scale. Colours, text sizes, the spacing rhythm and motion all live in Theme/.
+
+    The app-mixer values below are a coupled set: the panel width, its content width and the
+    margins have to agree with each other and with AppPanelAnimator, so they are named here
+    instead of being repeated as literals across the view and the animator.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:local="clr-namespace:AudioHQ.App"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
-        <local:GainToBrushConverter x:Key="GainToBrush" />
-        <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
-        <!-- Spacing tokens now live in Theme/Spacing.xaml. -->
-        <Thickness x:Key="AppMixerRegionMargin">6,12,0,12</Thickness>
-        <Thickness x:Key="AppMixerPanelClosedMargin">0</Thickness>
-        <Thickness x:Key="AppMixerPanelOpenMargin">6,0,6,0</Thickness>
-        <Thickness x:Key="AppMixerContentMargin">12</Thickness>
-        <Thickness x:Key="AppMixerRowPadding">6</Thickness>
-        <Thickness x:Key="AppMixerStackGap">0,0,0,6</Thickness>
-        <Thickness x:Key="AppMixerScrollBarMargin">6,0,0,0</Thickness>
-        <sys:Double x:Key="AppMixerContentWidth">220</sys:Double>
-        <sys:Double x:Key="AppMixerPanelWidth">244</sys:Double>
-        <Thickness x:Key="MainContentMargin">6,12,12,12</Thickness>
+    <local:GainToBrushConverter x:Key="GainToBrush" />
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
-        <!-- Inset of the text inside a DarkCombo (left gutter, right arrow column). EqWindow
-             overlays a label on top of the combo's selection text, so both must use this same
-             value or the overlay sits a few px off the text it replaces. -->
-        <Thickness x:Key="ComboContentInset">10,0,26,0</Thickness>
+    <!-- App-mixer panel geometry (see AppPanelAnimator: it animates between the open and
+         closed margins and the panel width). -->
+    <Thickness x:Key="AppMixerRegionMargin">6,12,0,12</Thickness>
+    <Thickness x:Key="AppMixerPanelClosedMargin">0</Thickness>
+    <Thickness x:Key="AppMixerPanelOpenMargin">6,0,6,0</Thickness>
+    <Thickness x:Key="AppMixerContentMargin">12</Thickness>
+    <Thickness x:Key="AppMixerRowPadding">6</Thickness>
+    <Thickness x:Key="AppMixerStackGap">0,0,0,6</Thickness>
+    <Thickness x:Key="AppMixerScrollBarMargin">6,0,0,0</Thickness>
+    <sys:Double x:Key="AppMixerContentWidth">220</sys:Double>
+    <sys:Double x:Key="AppMixerPanelWidth">244</sys:Double>
 
-        <!-- LEGACY ALIASES. The palette itself lives in Theme/Colors.xaml and the roles in
-             Theme/Semantic.xaml; these keys only forward to it so existing views keep
-             working while they migrate. Do not add new ones, and delete each alias once its
-             last consumer points at the Brush.* role instead. -->
-        <SolidColorBrush x:Key="BgBrush" Color="{StaticResource Color.Background}" />
-        <SolidColorBrush x:Key="CardBrush" Color="{StaticResource Color.Card}" />
-        <SolidColorBrush x:Key="MasterCardBrush" Color="{StaticResource Color.MasterCard}" />
-        <SolidColorBrush x:Key="MasterBorderBrush" Color="{StaticResource Color.MasterBorder}" />
-        <SolidColorBrush x:Key="TextBrush" Color="{StaticResource Color.TextPrimary}" />
-        <SolidColorBrush x:Key="DimTextBrush" Color="{StaticResource Color.TextMuted}" />
-        <SolidColorBrush x:Key="ButtonBrush" Color="{StaticResource Color.Control}" />
-        <SolidColorBrush x:Key="AccentGreen" Color="{StaticResource Color.Green}" />
-        <SolidColorBrush x:Key="AccentRed" Color="{StaticResource Color.Red}" />
-        <SolidColorBrush x:Key="AccentBlue" Color="{StaticResource Color.Blue}" />
-        <SolidColorBrush x:Key="InfoBubbleBrush" Color="{StaticResource Color.InfoBubble}" />
-        <SolidColorBrush x:Key="ErrorBubbleBrush" Color="{StaticResource Color.ErrorBubble}" />
+    <Thickness x:Key="MainContentMargin">6,12,12,12</Thickness>
+
+    <!-- Inset of the text inside a DarkCombo (left gutter, right arrow column). EqWindow
+         overlays a label on top of the combo's selection text, so both must use this same
+         value or the overlay sits a few px off the text it replaces. -->
+    <Thickness x:Key="ComboContentInset">10,0,26,0</Thickness>
+
 </ResourceDictionary>
