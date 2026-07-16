@@ -13,10 +13,16 @@
                 <ResourceDictionary Source="Resources/Theme/Spacing.xaml" />
                 <ResourceDictionary Source="Resources/Theme/Motion.xaml" />
 
-                <!-- Then converters/layout tokens and control styles. -->
+                <!-- Then converters and layout tokens, which the control styles read. -->
                 <ResourceDictionary Source="Resources/Tokens.xaml" />
-                <ResourceDictionary Source="Resources/StripStyles.xaml" />
-                <ResourceDictionary Source="Resources/AppMixerStyles.xaml" />
+
+                <!-- One file per control family. -->
+                <ResourceDictionary Source="Resources/Controls/Cards.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Buttons.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Toggles.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Sliders.xaml" />
+                <ResourceDictionary Source="Resources/Controls/ScrollBars.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Inputs.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

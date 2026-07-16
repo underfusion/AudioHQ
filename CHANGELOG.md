@@ -3,6 +3,16 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.16 - 2026-07-16
+
+### Changed
+- Internal reorganization: each control family now has its own style file under
+  `Resources/Controls/` instead of two large mixed ones, and every style reads its
+  colors from the shared theme. The main window is pixel-for-pixel unchanged.
+- The two near-identical scrollbar styles are now one. Scrollbars outside the app
+  mixer (combo dropdowns) pick up the polish the app-mixer one already had: the thumb
+  dims slightly on hover and while dragging.
+
 ## 0.5.15 - 2026-07-16
 
 ### Changed
