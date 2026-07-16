@@ -36,7 +36,7 @@ dotnet publish $proj -c Release -r $rid --self-contained true `
   -p:DebugType=none -p:DebugSymbols=false
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 
-$publishDir = Join-Path $root "src/AudioHQ.App/bin/Release/net7.0-windows/$rid/publish"
+$publishDir = Join-Path $root "src/AudioHQ.App/bin/Release/net10.0-windows/$rid/publish"
 if (-not (Test-Path $publishDir)) { throw "publish output not found: $publishDir" }
 
 # Stage the published output, minus debug symbols.

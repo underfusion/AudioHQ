@@ -15,6 +15,8 @@ public sealed class ChannelDefinition
     public string DeviceName { get; set; } = "";
     public string Name { get; set; } = "";
     public double Gain { get; set; } = 1.0;
+    // Absent on channels saved before mute was persisted; defaults to unmuted.
+    public bool Muted { get; set; }
     public bool Active { get; set; }
     public bool Focused { get; set; }
     // Per-channel graphic EQ; null on channels saved before EQ existed (treated as off).
@@ -29,9 +31,10 @@ public sealed class AppMixerDefinition
 }
 
 /// <summary>
-/// User-curated mixer state persisted to settings.json next to the exe:
-/// the chosen source, latency, and the ordered list of named channels.
-/// Survives restarts; missing/corrupt file falls back to defaults (first run).
+/// User-curated mixer state persisted to settings.json in %APPDATA%\AudioHQ (see
+/// <see cref="SettingsLocation"/>): the chosen source, latency, and the ordered list of named
+/// channels. Survives restarts, rebuilds and framework retargets; a missing/corrupt file falls
+/// back to defaults (first run).
 /// </summary>
 public sealed class MixerSettings
 {
@@ -63,8 +66,7 @@ public sealed class MixerSettings
     public bool LaunchMinimized { get; set; }
     public bool RunWithWindows { get; set; }
 
-    private static string FilePath =>
-        Path.Combine(AppContext.BaseDirectory, "settings.json");
+    private static string FilePath => SettingsLocation.FilePath;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -72,13 +74,14 @@ public sealed class MixerSettings
     {
         try
         {
-            if (!File.Exists(FilePath))
+            var path = ResolveLoadPath();
+            if (path is null)
             {
                 Log.Write("MixerSettings: no settings.json, using defaults (first run)");
                 return new MixerSettings();
             }
 
-            var json = File.ReadAllText(FilePath);
+            var json = File.ReadAllText(path);
             var settings = JsonSerializer.Deserialize<MixerSettings>(json);
             if (settings is null)
             {
@@ -96,17 +99,79 @@ public sealed class MixerSettings
         }
     }
 
-    public void Save()
+    /// <summary>
+    /// Picks the file to load: the live %APPDATA% copy, or a pre-0.5.35 file left next to the
+    /// exe, which is copied across on the way so later saves land in one place. The original is
+    /// deliberately left behind rather than deleted. Returns null when neither exists (first run).
+    /// </summary>
+    private static string? ResolveLoadPath()
     {
+        var path = FilePath;
+        if (File.Exists(path)) return path;
+
+        var legacy = SettingsLocation.LegacyFilePath;
+        if (!File.Exists(legacy)) return null;
+
         try
         {
+            Directory.CreateDirectory(SettingsLocation.Directory);
+            File.Copy(legacy, path);
+            Log.Write($"MixerSettings: migrated settings from '{legacy}' to '{path}'");
+            return path;
+        }
+        catch (Exception ex)
+        {
+            // Best-effort: read the old file where it lies rather than lose the user's setup.
+            Log.Write($"MixerSettings: migration from '{legacy}' failed, loading it in place: {ex.Message}");
+            return legacy;
+        }
+    }
+
+    /// <summary>
+    /// Writes settings.json atomically: serialize to a temp file next to it, flush to disk, then
+    /// swap it in. Autosave means this runs while the user is still working, so a forced kill or
+    /// power loss mid-write must never leave a truncated settings.json behind - the old file
+    /// survives intact until the replace succeeds. Safe to call repeatedly; never throws.
+    /// </summary>
+    public void Save()
+    {
+        var path = FilePath;
+        var temp = path + ".tmp";
+        try
+        {
+            // %APPDATA%\AudioHQ does not exist on a first run, and the temp file lands inside it.
+            Directory.CreateDirectory(SettingsLocation.Directory);
+
             var json = JsonSerializer.Serialize(this, JsonOptions);
-            File.WriteAllText(FilePath, json);
+
+            using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(json);
+                writer.Flush();
+                // Force the bytes to disk before the swap, or a crash right after Replace can
+                // leave an entry pointing at unwritten data.
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(path))
+                File.Replace(temp, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            else
+                File.Move(temp, path);
+
             Log.Write($"MixerSettings: saved {Channels.Count} channels");
         }
         catch (Exception ex)
         {
             Log.Write($"MixerSettings.Save FAILED: {ex}");
+            try
+            {
+                if (File.Exists(temp)) File.Delete(temp);
+            }
+            catch (Exception cleanupEx)
+            {
+                Log.Write($"MixerSettings: temp cleanup failed: {cleanupEx.Message}");
+            }
         }
     }
 }

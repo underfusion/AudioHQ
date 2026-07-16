@@ -1,0 +1,59 @@
+<!--
+    Spacing and corner radii.
+
+    Everything sits on a 6px rhythm: S=6 (half), M=12 (normal), L=24 (double), plus XS=3 for
+    hairline gaps and XL=18 where a section needs more air than M. Radii are named by the
+    element they belong to, so a pill and a card cannot drift apart.
+
+    Margin/Padding need a Thickness, not a Double, so the Double scale below cannot be bound
+    to them directly - that is why the Inset.*/Gap.* thicknesses exist. Use them instead of
+    typing a literal, so margins stay on the rhythm and stay adjustable from one place.
+
+    Genuinely one-off geometry (computed layout, optical nudges) stays a literal rather than
+    being forced onto this scale.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Spacing scale (Double: for Width/Height and anything numeric). -->
+    <sys:Double x:Key="SpacingXs">3</sys:Double>
+    <sys:Double x:Key="SpacingS">6</sys:Double>
+    <sys:Double x:Key="SpacingM">12</sys:Double>
+    <sys:Double x:Key="SpacingXl">18</sys:Double>
+    <sys:Double x:Key="SpacingL">24</sys:Double>
+
+    <!-- Uniform insets (all four sides), for Margin/Padding. -->
+    <Thickness x:Key="Inset.S">6</Thickness>
+    <Thickness x:Key="Inset.M">12</Thickness>
+    <Thickness x:Key="Inset.L">24</Thickness>
+
+    <!-- Directional gaps: the spacing BETWEEN stacked things. -->
+    <Thickness x:Key="Gap.BottomXs">0,0,0,3</Thickness>
+    <Thickness x:Key="Gap.BottomS">0,0,0,6</Thickness>
+    <Thickness x:Key="Gap.BottomM">0,0,0,12</Thickness>
+    <Thickness x:Key="Gap.TopXs">0,3,0,0</Thickness>
+    <Thickness x:Key="Gap.TopS">0,6,0,0</Thickness>
+    <Thickness x:Key="Gap.TopM">0,12,0,0</Thickness>
+    <Thickness x:Key="Gap.TopL">0,24,0,0</Thickness>
+    <Thickness x:Key="Gap.LeftS">6,0,0,0</Thickness>
+    <Thickness x:Key="Gap.LeftM">12,0,0,0</Thickness>
+    <Thickness x:Key="Gap.RightS">0,0,6,0</Thickness>
+
+    <!-- A section label sits close to the control it introduces, but well clear of the
+         section above it. One token keeps every "label + control" pair identical. -->
+    <Thickness x:Key="Gap.SectionLabel">0,18,0,6</Thickness>
+    <!-- Same, for the first section in a dialog (nothing above it to clear). -->
+    <Thickness x:Key="Gap.SectionLabelFirst">0,0,0,6</Thickness>
+
+    <!-- Corner radii -->
+    <!-- Small controls: scroll thumbs, slider tracks, tight chips. -->
+    <CornerRadius x:Key="Radius.Sm">3</CornerRadius>
+    <!-- Buttons and inputs. -->
+    <CornerRadius x:Key="Radius.Md">6</CornerRadius>
+    <!-- Pills and larger interactive surfaces. -->
+    <CornerRadius x:Key="Radius.Lg">8</CornerRadius>
+    <!-- Strip/panel cards. -->
+    <CornerRadius x:Key="Radius.Card">12</CornerRadius>
+
+</ResourceDictionary>

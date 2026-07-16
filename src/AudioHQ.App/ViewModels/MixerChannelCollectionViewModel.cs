@@ -107,7 +107,7 @@ public sealed class MixerChannelCollectionViewModel : ViewModelBase
             }
 
             var vm = new ChannelViewModel(_engine, deviceId, present, definition.Name, definition.Gain,
-                _latencyMs, _markDirty, _eqPresets, definition.Eq, deviceName)
+                _latencyMs, _markDirty, _eqPresets, definition.Eq, deviceName, definition.Muted)
             {
                 IsSource = deviceId == sourceId,
                 WantsActive = definition.Active,

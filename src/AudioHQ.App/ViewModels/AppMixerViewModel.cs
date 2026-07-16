@@ -73,47 +73,28 @@ public sealed class AppMixerViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>Reconcile the row list against a fresh session snapshot, preserving the user's
-    /// pinned/dragged order: update in place by key, drop ended sessions, append new ones.</summary>
+    /// pinned/dragged order: update in place by key, drop ended sessions, append new ones.
+    /// The filter/dedup/diff decisions live in <see cref="AppSessionReconciler"/>.</summary>
     public void Refresh()
     {
         List<AppSession> sessions;
         try { sessions = AppSessions.ForDefaultRender(); }
         catch (Exception ex) { Log.Write($"AppMixer.Refresh failed: {ex.Message}"); return; }
 
-        // Exclude AudioHQ itself - it always appears in the session list but controlling
-        // its own volume here would be circular.
-        var selfPid = Environment.ProcessId;
-        sessions = sessions.Where(s => s.ProcessId != selfPid).ToList();
+        var plan = AppSessionReconciler.Reconcile(
+            sessions, Apps.Select(a => a.Key).ToHashSet(), Environment.ProcessId);
 
-        // Filter out System Sounds - the user does not want it in the mixer.
-        sessions = sessions.Where(s => !s.IsSystemSounds).ToList();
-
-        // Deduplicate by stable application identity. Browsers/Electron apps often expose
-        // multiple WASAPI sessions or processes, but the panel should show one row per app.
-        var incoming = new Dictionary<string, AppSession>();
-        foreach (var session in sessions)
-        {
-            if (!incoming.ContainsKey(session.AppKey))
-                incoming[session.AppKey] = session;
-        }
-
-        var existing = Apps.ToDictionary(a => a.Key);
-        foreach (var (key, session) in incoming)
-            if (existing.TryGetValue(key, out var vm)) vm.Update(session);
+        foreach (var vm in Apps)
+            if (plan.Current.TryGetValue(vm.Key, out var session)) vm.Update(session);
 
         for (int i = Apps.Count - 1; i >= 0; i--)
-            if (!incoming.ContainsKey(Apps[i].Key))
+            if (!plan.Current.ContainsKey(Apps[i].Key))
                 Apps.RemoveAt(i);
 
         // Append newly-seen apps, restoring their pinned state if this app was seen before.
         // Saved ordering is applied after the append so returning pinned apps land back in place.
-        var present = Apps.Select(a => a.Key).ToHashSet();
         var saved = _settings.AppMixerApps.ToDictionary(a => a.Key);
-        var added = incoming.Values
-            .Where(s => !present.Contains(s.AppKey))
-            .OrderBy(s => s.FriendlyName, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
-        foreach (var session in added)
+        foreach (var session in plan.Added)
         {
             saved.TryGetValue(session.AppKey, out var state);
             Apps.Add(new AppSessionViewModel(session, state?.Pinned == true));

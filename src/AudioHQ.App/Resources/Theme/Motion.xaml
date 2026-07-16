@@ -1,0 +1,17 @@
+<!--
+    Animation timing and easing. One duration and one easing curve keep every transition
+    feeling like the same app.
+
+    The easing function is frozen and shared: storyboards only read it.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
+
+    <!-- App-mixer panel slide (AppPanelAnimator). -->
+    <Duration x:Key="Duration.PanelSlide">0:0:0.18</Duration>
+
+    <!-- Standard curve for UI transitions: fast out, settles gently. -->
+    <CubicEase x:Key="Ease.Standard" po:Freeze="True" EasingMode="EaseOut" />
+
+</ResourceDictionary>

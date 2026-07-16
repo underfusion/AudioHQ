@@ -3,6 +3,282 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.35 - 2026-07-16
+
+### Fixed
+- `settings.json` now lives in `%APPDATA%\AudioHQ` instead of next to the exe, so it
+  survives rebuilds, framework retargets and a clean checkout. It was being treated as
+  a build artifact: the 0.5.34 net7.0 -> net10.0 retarget renamed the output folder
+  (`bin/Debug/net7.0-windows` -> `net10.0-windows`), the app found no settings in the
+  new folder and silently started from defaults, losing channels, EQ presets, tray
+  options and window position. Cleaning `bin/` deleted the setup outright.
+- Existing settings are migrated once on load: a `settings.json` found beside the exe
+  is copied into `%APPDATA%\AudioHQ` and used from there on, so an upgrade keeps the
+  user's setup without any manual step. The original file is left in place rather than
+  deleted, and if the copy fails the old file is read where it lies instead of falling
+  back to defaults.
+
+### Added
+- `SettingsLocation`: single place resolving the settings directory, the file name and
+  the legacy (beside-the-exe) path. Both directories are settable so tests redirect
+  them to a scratch folder and never touch the real user profile.
+- Four `MixerSettingsAtomicSaveTests` cases: the migration copies across and keeps the
+  original, the live file wins over a stale legacy file, migration happens only once so
+  later edits are not overwritten, and `Save` creates the settings directory on a first
+  run into a fresh profile.
+
+## 0.5.34 - 2026-07-16
+
+### Changed
+- Retargeted all four projects from the end-of-life `net7.0` to `net10.0`
+  (`Core`/`Cli` to `net10.0`, `App`/`Tests` to `net10.0-windows`). net7.0 stopped
+  receiving security fixes in May 2024; net10 is the current long-term support
+  release. No code changed: no removed API was in use, and nothing pinned a
+  runtime version (no `global.json`, no `RuntimeIdentifier` or `LangVersion`).
+- Updated the TFM hardcoded in the output paths of `start.bat` and
+  `tools/publish.ps1`. These are easy to miss because neither fails at build
+  time - `publish.ps1` would have thrown "publish output not found" and
+  `start.bat` would have launched a stale exe.
+- `docs/ARCHITECTURE.md`, `README.md` and `CLAUDE.md`: refreshed the project
+  diagram and build paths; replaced the "net7.0 is past EOL, defer the migration
+  until an SDK exists" note with what was actually done.
+
+## 0.5.33 - 2026-07-16
+
+### Fixed
+- The app-mixer drag ghost's shadow named `Colors.Black` directly in `AppRowDragController`,
+  the last colour defined in code-behind and the only breach of the styling rule added in
+  0.5.32. It now reads `Color.Black` from the palette through `ThemeResources`. The rendered
+  shadow is unchanged; the point is that no colour outside `Colors.xaml` can drift from the
+  theme unnoticed.
+
+## 0.5.32 - 2026-07-16
+
+### Documentation
+- `docs/ARCHITECTURE.md`: corrected the stale version stamp (claimed v0.8.3), replaced the
+  two references to a non-existent `EngineStatus` with the real `MixerViewModel.Status` /
+  `ChannelViewModel.Status`, documented per-output fault isolation in the capture callback
+  and the named channel-count mismatch failure, and refreshed the test-coverage note.
+- `CLAUDE.md`: the project map now lists every app class that was missing from it
+  (`App.xaml(.cs)`, `MixerSettings.cs`, `ViewModelBase.cs`, `OptionsWindow.xaml(.cs)`,
+  `AppMixerWindow.cs`, `TrayController.cs`, `StartupRegistration.cs`,
+  `GainToBrushConverter.cs`, `RelayCommand.cs`).
+- `CLAUDE.md`: recorded two rules for future work - the one-theme styling rule (every
+  visual value comes from `Resources/Theme/*`, no literal colours anywhere else) and the
+  MMDevice ownership rule (receiver-owns, on success).
+
+## 0.5.31 - 2026-07-16
+
+### Changed
+- Internal: the equalizer's filter bank now uses a flat array indexed by channel and band
+  instead of a rectangular 2-D array. The per-sample loop runs bands x channels times for
+  every sample, and a 2-D access costs an extra multiply and bounds check each time.
+  Output is unchanged - verified bit-identical against the previous layout across
+  pass-through, band rebuilds, live fader updates, low-pass cascades and disable.
+
+### Added
+- Tests: the equalizer provider is now covered directly - pass-through when off,
+  channel isolation, per-channel filter state, boost/cut at a band's centre frequency,
+  live reconfigure keeping filter state, band-count switches and the low-pass cascade.
+  9 new tests, 120 total.
+
+## 0.5.30 - 2026-07-16
+
+### Changed
+- Internal: the app-mixer's refresh rules (skip AudioHQ itself and System Sounds, one row
+  per app, update/drop/append without disturbing the user's order) and the source pick
+  rules (saved device first, else system default, else first available; when to switch
+  back to the saved device) now live in two small pure classes with their own tests.
+  No change in behavior; 15 new tests, 111 total.
+
+## 0.5.29 - 2026-07-16
+
+### Changed
+- Internal: the channel state machine's active-state transitions are now covered by
+  hardware-free tests - a successful open, a suspend while running, an output dying on its
+  own (with the "Reconnecting..." status), and the retry budget refilling after a recovery.
+  Activation results gained a test-only seam to fake a live output. No change in behavior;
+  6 new tests.
+
+## 0.5.28 - 2026-07-16
+
+### Changed
+- Internal: the EQ preset store's saving rules now have automated coverage - the built-in
+  Default preset stays untouchable (even via a hand-edited settings file), saving over an
+  existing name overwrites it instead of duplicating, and saved curves are protected from
+  later edits in the editor. No change in behavior; 12 new tests.
+
+## 0.5.27 - 2026-07-16
+
+### Fixed
+- Mirroring to a device that expects a different number of channels than the source (for
+  example a 5.1/7.1 output) now says exactly that - "Needs 6ch, source is 2ch" - instead
+  of the unhelpful "Format not supported". Devices that already work are unaffected.
+
+## 0.5.26 - 2026-07-16
+
+### Changed
+- Internal: a channel's reconnect logic can now be tested without real audio hardware, so
+  the awkward cases have automated coverage - a device that disappears at the moment of
+  activation, and one that keeps failing until the retry limit stops it being hammered.
+  No change in behavior; 11 new tests.
+
+## 0.5.25 - 2026-07-16
+
+### Changed
+- Internal: one documented rule now covers who releases a Windows audio device, and the
+  last class that ignored it (the legacy single-target mirror) follows it. Its teardown
+  is also guarded, so a device that has already gone away cannot leave endpoints behind.
+
+## 0.5.24 - 2026-07-16
+
+### Changed
+- Internal: the equalizer file was three things at once and is now three files (saved EQ
+  state, the fixed band frequencies, and the live filter chain). The engine's tuning
+  numbers - buffer size, the resync and backlog margins, and the resampler's correction
+  limits - now live in one documented place instead of being scattered as bare literals.
+  Values are unchanged.
+
+## 0.5.23 - 2026-07-16
+
+### Changed
+- Internal: an output strip's device side (opening and closing the live output, the
+  reconnect retry budget, and whether its device is plugged in) moved into its own class,
+  leaving the strip itself to hold only what you can see and change. No change in
+  behavior. All four oversized files are now under the size limit.
+
+## 0.5.22 - 2026-07-16
+
+### Changed
+- Internal: reconciling the audio-device list (which endpoints exist, which channel uses
+  which, and adopting an endpoint Windows recreated under a new id) moved into its own
+  class, separate from the watchdog that decides when to check. No change in behavior.
+
+## 0.5.21 - 2026-07-16
+
+### Changed
+- Internal: the main window handed its two biggest jobs to dedicated classes - remembering
+  the window position (including the guard that ignores a position on a monitor you have
+  since unplugged) and attaching/detaching the app mixer. No change in behavior; 11 new
+  tests cover the position rules.
+
+## 0.5.20 - 2026-07-16
+
+### Changed
+- Internal: the EQ preset rules (which preset the current curve matches, whether it has
+  unsaved edits, and whether Save overwrites or creates) moved out of the EQ window into
+  a separate tested class. No change in behavior; 15 new tests cover it.
+
+## 0.5.19 - 2026-07-16
+
+### Changed
+- Removed the twelve migration-only color aliases now that nothing uses them. Every
+  brush in the app is reached through its theme role, leaving one way to do it.
+
+## 0.5.18 - 2026-07-16
+
+### Changed
+- Windows no longer carry their own hard-coded text sizes, colors, corner radii or
+  margins - every one now comes from the shared theme, so the look is adjustable from
+  one place. Options and EQ share one title, section-label and check-box style instead
+  of repeating the same settings.
+- Spacing is now on a consistent 6px rhythm. The Options and EQ dialogs had drifted to
+  ad-hoc gaps (the three Options section labels each used a different one), so a few
+  gaps shift by 1-4px and the sections line up evenly. The main window is unchanged.
+- Corner radii that sat just off the scale are snapped onto it: the ON/MUTE/EQ pills go
+  from 7 to 8, and the small icon buttons from 5 to 6.
+
+## 0.5.17 - 2026-07-16
+
+### Changed
+- The channel fader's green is now the same green as the ON pill and the app-mixer
+  faders (a slightly deeper green than before). It had drifted to its own lighter
+  shade. Boost amber and max-boost red are unchanged.
+- The tray icon's and taskbar overlay's "active" dot now use the app's green instead
+  of the generic Windows lime green, so every "on" indicator matches.
+- Colors, and the app-mixer slide timing, are no longer duplicated in C#: they all
+  read from the shared theme.
+
+## 0.5.16 - 2026-07-16
+
+### Changed
+- Internal reorganization: each control family now has its own style file under
+  `Resources/Controls/` instead of two large mixed ones, and every style reads its
+  colors from the shared theme. The main window is pixel-for-pixel unchanged.
+- The two near-identical scrollbar styles are now one. Scrollbars outside the app
+  mixer (combo dropdowns) pick up the polish the app-mixer one already had: the thumb
+  dims slightly on hover and while dragging.
+
+## 0.5.15 - 2026-07-16
+
+### Changed
+- Internal groundwork with no visible change: colors, text sizes, spacing, corner radii
+  and animation timing now have a single source of truth under `Resources/Theme/`.
+  Every color hex is defined once, and the previous style keys forward to it.
+
+## 0.5.14 - 2026-07-16
+
+### Changed
+- Internal cleanup with no behavior change: the UI-thread marshaling snippet that was
+  hand-copied into three callbacks now lives in one shared `UiDispatcher.Post` helper.
+
+## 0.5.13 - 2026-07-16
+
+### Changed
+- A muted output channel now stays muted after a restart, matching how its volume is
+  already remembered. Settings files written before this change still load and their
+  channels come back unmuted.
+
+## 0.5.12 - 2026-07-16
+
+### Fixed
+- Volume, EQ and rename edits no longer wait for a clean exit to be saved. They are
+  now written about two seconds after you stop making changes, and immediately when
+  the window loses focus or Windows logs off - so an edit made while AudioHQ sits in
+  the tray survives a crash or a forced shutdown. Dragging a fader still writes only
+  once, when you let go.
+- settings.json is now written atomically (temp file, flushed to disk, then swapped
+  in). Losing power or killing the app mid-save can no longer truncate it; the
+  previous settings stay intact until the new file is complete.
+
+## 0.5.11 - 2026-07-16
+
+### Fixed
+- The per-app mixer no longer leaks a WASAPI device handle on every refresh tick.
+  AppSession now roots only its own SimpleAudioVolume (not the source device),
+  and the snapshot method disposes the device in a finally block after extracting
+  all sessions. Measured: ~1800 handles an hour with the panel open, none of which
+  the garbage collector reclaimed.
+- Hot-plugging devices during long sessions no longer retains removed endpoints:
+  the two recovery paths that dropped a device from the source list without
+  releasing it now dispose it.
+
+## 0.5.10 - 2026-07-16
+
+### Fixed
+- One failing output can no longer interrupt audio to the other outputs. A channel
+  that throws while receiving audio is now logged once and skipped instead of
+  unwinding the capture callback and cutting every other output with it.
+- The source-loss watchdog can no longer miss a capture-stopped transition: the
+  capturing flag is now published correctly across threads.
+
+## 0.5.9 - 2026-07-16
+
+### Fixed
+- Repeatedly failing to activate an output no longer accumulates leaked Windows audio
+  objects. When a device rejects both event-sync and push mode, the half-built channel
+  now releases its audio client instead of leaking one per attempt, which auto-retry
+  used to multiply. Disposing a channel also survives a device that has already gone
+  away.
+
+## 0.5.8 - 2026-07-16
+
+### Fixed
+- Stopping the mirror now always finishes cleanly, even when the source device has
+  already been unplugged or disabled. Every teardown step is guarded individually,
+  so a driver that throws can no longer leave the engine stuck holding a dead
+  capture, which also keeps the source-loss watchdog able to recover.
+
 ## 0.5.7 - 2026-07-15
 
 ### Fixed

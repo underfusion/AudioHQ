@@ -1,4 +1,4 @@
-﻿using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
@@ -17,8 +17,13 @@ public sealed class OutputChannel : IDisposable
     private float _gain = 1f;
     private bool _muted;
     private volatile bool _disposed;
+    private volatile bool _writeFailureLogged;
 
-    /// <summary>The channel OWNS this instance (disposed with the channel).</summary>
+    /// <summary>
+    /// The channel OWNS this instance (disposed with the channel) - but only once the
+    /// constructor has SUCCEEDED. If construction throws, the device is still the caller's
+    /// to dispose.
+    /// </summary>
     public MMDevice Device { get; }
 
     /// <summary>
@@ -35,24 +40,17 @@ public sealed class OutputChannel : IDisposable
         _deviceName = device.FriendlyName;
 
         var mixFormat = device.AudioClient.MixFormat;
-        // Allow some jitter headroom above the render buffer before resyncing.
-        // Capture delivers ~10ms chunks, so anything above latency + ~25ms is pure added delay.
-        _maxBacklog = TimeSpan.FromMilliseconds(latencyMs + 25);
+        _maxBacklog = TimeSpan.FromMilliseconds(latencyMs + EngineTunables.ResyncMarginMs);
         Log.Write($"OutputChannel: device='{device.FriendlyName}', capture={captureFormat}, deviceMix={mixFormat}, latency={latencyMs}ms, maxBacklog={_maxBacklog.TotalMilliseconds}ms");
 
         _buffer = new BufferedWaveProvider(captureFormat)
         {
             DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromSeconds(2),
+            BufferDuration = TimeSpan.FromSeconds(EngineTunables.BufferSeconds),
         };
 
         int targetRate = mixFormat.SampleRate;
-        // Trough (minimum backlog) the controller steers toward. It must stay ABOVE the
-        // WASAPI pull granularity (~latencyMs per render callback) plus delivery jitter, or
-        // the buffer underruns at the low point and we feed silence (crackle). latency + 5ms
-        // is the trimmed-down margin; still under the hard resync at latency + 25ms so normal
-        // drift never trips it. Raise back toward +10 if a jittery source starts to crackle.
-        double targetBacklogMs = latencyMs + 5.0;
+        double targetBacklogMs = latencyMs + EngineTunables.TargetBacklogMarginMs;
         ISampleProvider pipeline = new AdaptiveResampler(
             _buffer.ToSampleProvider(),
             targetRate,
@@ -76,13 +74,64 @@ public sealed class OutputChannel : IDisposable
         {
             Log.Write($"OutputChannel: event-sync init FAILED: {ex}");
             _out?.Dispose();
-            _out = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: false, latencyMs);
-            _out.Init(_volume);
-            Log.Write("OutputChannel: push-mode init OK");
+            _out = null!;
+            try
+            {
+                _out = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: false, latencyMs);
+                _out.Init(_volume);
+                Log.Write("OutputChannel: push-mode init OK");
+            }
+            catch (Exception pushEx)
+            {
+                // Both modes failed (e.g. a mix format shared mode rejects outright). Nothing owns
+                // this half-built channel, so release the client here or every auto-retry leaks
+                // one IAudioClient.
+                DisposeFailedInit();
+
+                // Diagnose the one cause we can name. Checked only now, AFTER both attempts:
+                // pre-empting on a channel-count difference would reject a driver that would
+                // have accepted the format anyway.
+                if (captureFormat.Channels != mixFormat.Channels)
+                {
+                    Log.Write($"OutputChannel '{_deviceName}': channel-count mismatch - " +
+                              $"source is {captureFormat.Channels}ch, device mix is {mixFormat.Channels}ch");
+                    throw new ChannelCountMismatchException(captureFormat.Channels, mixFormat.Channels, pushEx);
+                }
+                throw;
+            }
         }
         _out.PlaybackStopped += OnOutPlaybackStopped;
-        _out.Play();
+        try
+        {
+            _out.Play();
+        }
+        catch
+        {
+            DisposeFailedInit();
+            throw;
+        }
         Log.Write($"OutputChannel: playing on '{device.FriendlyName}'");
+    }
+
+    /// <summary>
+    /// Releases the audio client the failed constructor had already created. The caller never
+    /// receives the instance, so nobody else can ever call <see cref="Dispose"/> on it.
+    /// Deliberately leaves <see cref="Device"/> alone: the channel takes ownership of the device
+    /// only once construction SUCCEEDS, so on failure the device is still the caller's to dispose
+    /// (<c>ChannelActivationService.CleanUpFailedActivation</c>). Disposing it here would
+    /// over-release the COM object.
+    /// </summary>
+    private void DisposeFailedInit()
+    {
+        _disposed = true;
+        try
+        {
+            _out?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"OutputChannel '{_deviceName}': failed-init client dispose failed: {ex.Message}");
+        }
     }
 
     private void OnOutPlaybackStopped(object? sender, StoppedEventArgs e)
@@ -128,6 +177,18 @@ public sealed class OutputChannel : IDisposable
         _buffer.AddSamples(buffer, 0, count);
     }
 
+    /// <summary>
+    /// Records a failure thrown out of <see cref="Write"/>. Logs the first one only: the
+    /// capture callback runs ~100 times a second, so a permanently broken output would
+    /// otherwise flood the log with the same line.
+    /// </summary>
+    internal void NoteWriteFailure(Exception ex)
+    {
+        if (_writeFailureLogged) return;
+        _writeFailureLogged = true;
+        Log.Write($"OutputChannel '{_deviceName}': write failed, this output is dropping audio: {ex.Message}");
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -142,6 +203,15 @@ public sealed class OutputChannel : IDisposable
         {
             Log.Write($"OutputChannel '{_deviceName}': dispose failed: {ex.Message}");
         }
-        Device.Dispose();
+        // Guarded too: a device that already went away can throw here, and an escaping
+        // exception would skip the rest of the caller's teardown loop.
+        try
+        {
+            Device.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"OutputChannel '{_deviceName}': device dispose failed: {ex.Message}");
+        }
     }
 }

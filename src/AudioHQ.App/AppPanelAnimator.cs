@@ -18,8 +18,8 @@ public sealed class AppPanelAnimator
 
     public void Animate(bool expand)
     {
-        var duration = new Duration(TimeSpan.FromMilliseconds(180));
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var duration = (Duration)_resourceOwner.FindResource("Duration.PanelSlide");
+        var ease = (IEasingFunction)_resourceOwner.FindResource("Ease.Standard");
 
         var panelWidth = (double)_resourceOwner.FindResource("AppMixerPanelWidth");
         _panel.BeginAnimation(FrameworkElement.WidthProperty,

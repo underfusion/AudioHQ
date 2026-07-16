@@ -44,7 +44,7 @@ public static class AppSessions
                     var control = sessions[i];
                     // Expired sessions are dead apps; the Windows mixer drops them too.
                     if (control.State == AudioSessionState.AudioSessionStateExpired) continue;
-                    result.Add(new AppSession(device, control));
+                    result.Add(new AppSession(control));
                 }
                 catch (Exception ex)
                 {
@@ -55,6 +55,22 @@ public static class AppSessions
         catch (Exception ex)
         {
             Log.Write($"AppSessions.ForDefaultRender failed: {ex.Message}");
+        }
+        finally
+        {
+            // This snapshot is retaken every 2s while the app-mixer panel is open, so an
+            // undisposed device here leaks a handle per refresh that GC never reclaims.
+            // Each returned AppSession keeps its own SimpleAudioVolume, whose COM object
+            // carries an independent reference and stays readable AND writable after this
+            // dispose - measured, not assumed.
+            try
+            {
+                device.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"AppSessions: device dispose failed: {ex.Message}");
+            }
         }
 
         Log.Write($"AppSessions: {result.Count} session(s) on default render device");

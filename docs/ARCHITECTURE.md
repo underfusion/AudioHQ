@@ -2,17 +2,17 @@
 
 > Keep this file truthful to the code. Update it in the same commit as any
 > behavior change it describes (repository documentation convention).
-> Last updated: 2026-07-09 (v0.8.3).
+> Last updated: 2026-07-16 (v0.5.32).
 
 ## Solution layout
 
 Four projects, strict dependency direction (UI never leaks into the engine):
 
 ```
-AudioHQ.App (WPF, net7.0-windows) --.
-                                     |--> AudioHQ.Core (net7.0, NAudio 2.3)
-AudioHQ.Cli (console, net7.0)     --'
-AudioHQ.Tests (xUnit, net7.0-windows) --> AudioHQ.Core + AudioHQ.App
+AudioHQ.App (WPF, net10.0-windows) --.
+                                      |--> AudioHQ.Core (net10.0, NAudio 2.3)
+AudioHQ.Cli (console, net10.0)     --'
+AudioHQ.Tests (xUnit, net10.0-windows) --> AudioHQ.Core + AudioHQ.App
 ```
 
 - **AudioHQ.Core** - audio engine. No WPF/WinForms references, ever.
@@ -22,7 +22,7 @@ AudioHQ.Tests (xUnit, net7.0-windows) --> AudioHQ.Core + AudioHQ.App
   without the GUI.
 - **AudioHQ.Tests** - focused xUnit safety-net tests for hardware-free logic:
   EQ settings/model behavior and settings serialization. It targets
-  `net7.0-windows` because it references app view-model types from the WPF
+  `net10.0-windows` because it references app view-model types from the WPF
   project.
 
 Version is centralized in `Directory.Build.props` (every assembly inherits
@@ -62,7 +62,10 @@ Key decisions:
 
 - **Fan-out at the byte level.** One capture feeds N independent per-device
   pipelines; each `OutputChannel` owns its buffer, resampler, EQ, gain and `WasapiOut`.
-  A slow/failed device cannot stall the others (worst case it resyncs).
+  A slow/failed device cannot stall the others (worst case it resyncs). The
+  capture callback backs this up with a per-output `try/catch`: a channel that
+  throws is logged once (`OutputChannel.NoteWriteFailure`) and skipped, so it
+  cannot unwind the callback and cut audio to the rest.
 - **Drift compensation (`AdaptiveResampler`).** The capture clock and each
   output clock run independently, so a fixed-ratio resample lets the backlog
   slowly creep (delay grows, then a hard flush jumps it back - audible on low
@@ -125,6 +128,40 @@ Key decisions:
   thread; `MixerViewModel.OnEngineSourceLost` and
   `ChannelViewModel.OnPlaybackStopped` marshal through the `Dispatcher` before
   touching view state.
+- All UI-thread marshaling goes through one helper, `UiDispatcher.Post` (source
+  lost, playback stopped, power-mode resume). It always uses `BeginInvoke`, never
+  `Invoke`: these callbacks arrive on the audio threads, and a synchronous hop
+  would block capture/render until the UI thread is free. With no `Application`
+  (unit tests, shutdown) it runs the action inline.
+
+## Device object lifetime (MMDevice ownership)
+
+One rule, because a COM endpoint released twice is as bad as one never released:
+
+- **Receiver owns, on success.** A class that is handed an `MMDevice` and keeps it
+  (`OutputChannel`, `MirrorEngine`, `LoopbackMirror`) owns it and disposes it - but
+  ownership transfers only once the constructor/`Start` SUCCEEDS. If construction
+  throws, the device is still the caller's, and the caller disposes it
+  (`ChannelActivationService.CleanUpFailedActivation`). Disposing on both sides would
+  over-release the COM object.
+- **Callers pass a fresh instance.** Never hand one of these a cached or shared
+  device; see the Fresh MMDevice policy below.
+- **Whoever drops it from a list disposes it.** `SourceDeviceSync` disposes every
+  device it removes from `Sources` (and every duplicate it enumerates but does not
+  keep). Dropping the reference alone holds the endpoint's COM handles until a GC
+  that may never come. This is safe even if `SelectedSource` still points at it: a
+  disposed `MMDevice` keeps answering `FriendlyName`/`ID`.
+- **Short-lived snapshots dispose immediately.** `AppSessions.ForDefaultRender`
+  disposes its device as soon as the snapshot is built, in a `finally`. The
+  `AppSession` rows outlive it and keep working, because a session's
+  `SimpleAudioVolume` holds a COM reference independent of the device - verified by
+  measurement, see the per-app mixer section.
+- **Teardown never throws.** Disposing a device that already went away can throw from
+  the driver; every teardown path guards each step and logs what it swallowed
+  (`MirrorEngine.Stop`, `OutputChannel.Dispose`, `LoopbackMirror.Dispose`).
+
+The exception: the `MMDevice` instances in `Sources` are UI-only (combo box, master
+volume) and are owned by that list, not by anything that opens an audio client.
 
 ## Device-loss recovery (watchdog, sleep/resume)
 
@@ -140,6 +177,10 @@ the app alive and self-healing:
   every activation (the `OutputChannel` owns and disposes it), and
   `RestartEngine` does the same for the capture source (the engine owns it).
   The instances in `Sources` exist only for the UI (combo box, master volume).
+  Ownership transfers on SUCCESS only: if the `OutputChannel` constructor throws
+  it disposes just the audio client it created and leaves the device to the
+  caller, which is what `ChannelActivationService.CleanUpFailedActivation` does.
+  Disposing it on both sides would over-release the COM object.
 - **Source event path.** `MirrorEngine` subscribes to `RecordingStopped`. An
   unsolicited stop (the handler is detached before an intentional `Stop`) means
   the source endpoint was invalidated: `IsCapturing` goes false and `SourceLost`
@@ -179,10 +220,12 @@ the app alive and self-healing:
   are picked up as they appear.
 
 `TryRecover` (re-entrancy guarded) re-resolves a live source (the preferred one if
-it is back, else the current default render device), calls `RestartEngine` to
+it is back, else the current default render device - the pure preferred/default/first
+fallback rule lives in `SourceSelectionRules`, unit tested without audio endpoints),
+calls `RestartEngine` to
 rebuild capture and re-activate the channels whose intent is ON, then reports the
-outcome in `EngineStatus` (`Source switched to 'X'.` when it had to fall back to a
-different device, cleared on a clean same-device recovery) and persists the choice.
+outcome in `MixerViewModel.Status` (`Source switched to 'X'.` when it had to fall back
+to a different device, cleared on a clean same-device recovery) and persists the choice.
 
 **Preferred vs. active source.** `_preferredSourceId` is the source the user
 actually chose (persisted as `SourceDeviceId`); `_selectedSource` is whatever is
@@ -192,7 +235,8 @@ Only an explicit pick (the `SelectedSource` setter) changes the preference, and
 `Save` writes `_preferredSourceId`, never a fallback, so a temporary fallback can
 never overwrite the real preference. When the watchdog finds capture healthy but
 running on a fallback, `TrySwitchToPreferred` switches back to the preferred device
-as soon as it reappears (status `Source restored to 'X'.`). A device that refuses
+as soon as it reappears (status `Source restored to 'X'.`); whether a switch attempt
+is due is `SourceSelectionRules.ShouldSwitchToPreferred`. A device that refuses
 to start is recorded in `_unstartableSources` and not retried until it disconnects
 and reconnects, so the app never spins on, e.g., a device locked in exclusive mode.
 
@@ -225,6 +269,26 @@ and reconnects, so the app never spins on, e.g., a device locked in exclusive mo
   - Save projection is centralized in `MixerSettingsProjection`: `MixerViewModel`
     still decides when to save, but the mapping from live UI state to
     `MixerSettings` is a small tested helper.
+  - **Autosave.** `MarkDirty` (gain, EQ, rename, active) flags the edit and re-arms
+    a 2 s `DispatcherTimer`; the timer fires once after the last change, so a fader
+    drag writes once on release instead of per change notification. `FlushPendingSave`
+    also runs on window `Deactivated`, on `SystemEvents.SessionEnding` and from
+    `Dispose`. This matters because close-to-tray only hides the window, so `Dispose`
+    never runs while the app sits in the tray - edits used to be lost on a forced
+    shutdown. `MixerSettings.Save` is atomic (write `settings.json.tmp`, flush to
+    disk, then `File.Replace`/`Move`), so a kill mid-write cannot truncate the file;
+    the previous settings survive. Covered by `MixerSettingsAtomicSaveTests`.
+  - **Where settings live.** `SettingsLocation` resolves `settings.json` to
+    `%APPDATA%\AudioHQ`. Settings are user data, not a build artifact: before 0.5.35
+    the file sat next to the exe (`AppContext.BaseDirectory`), so retargeting
+    net7.0 -> net10.0 renamed the output folder out from under it and the app came up
+    with defaults, and cleaning `bin/` deleted the user's setup outright.
+    `MixerSettings.Load` migrates a legacy file found beside the exe once, copying it
+    across (the original is left in place, never deleted) and preferring the
+    `%APPDATA%` copy from then on; if the copy fails it reads the old file where it
+    lies rather than lose the setup. `Save` creates the directory on first run. Both
+    directories on `SettingsLocation` are settable so tests redirect them to a scratch
+    folder instead of the real user profile.
   - Tray/startup options are owned by `TrayOptions`
     (`MixerTrayOptionsViewModel`), which updates `MixerSettings`, saves changes,
     and synchronizes the Run-with-Windows registry entry.
@@ -251,7 +315,10 @@ and reconnects, so the app never spins on, e.g., a device locked in exclusive mo
     cleans up failed activation attempts, and maps COM errors to short status
     strings: `0x8889000A` in use (exclusive), `0x88890008` format not supported,
     `0x88890004` device unavailable.
-  - `Gain` (0..2, shown as %) and `IsMuted` write through to the live channel.
+  - `Gain` (0..2, shown as %) and `IsMuted` write through to the live channel. Both
+    are persisted (`ChannelDefinition.Gain` / `.Muted`), so a channel muted at exit
+    comes back muted and activation re-applies it. `Muted` is absent from settings
+    written before it was persisted and defaults to unmuted.
   - `ChannelRetryBudget` limits watchdog auto-reactivation attempts for a
     persistently failing output. Resume recovery, fresh device appearance and
     explicit user toggles reset the budget; forced restart attempts bypass it.
@@ -272,14 +339,20 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
   `AppKey` based on executable path/icon/name, and exposes the session's own
   `Volume` (0..1) and `Muted` via `SimpleAudioVolume`. Every COM access is
   guarded - a session can expire mid-call - so reads fall back to last values and
-  writes are no-ops on a dead session. The wrapper roots its source `MMDevice` so
-  the session COM objects stay valid after the enumerator is gone. The snapshot API
-  itself is synchronous and stateless; the UI decides when to call it.
+  writes are no-ops on a dead session. The wrapper roots only its own
+  `SimpleAudioVolume`: that COM reference is independent of the device and the
+  enumerator, so `ForDefaultRender` disposes the `MMDevice` as soon as the snapshot
+  is built and the rows keep reading AND writing per-app volume/mute afterwards.
+  This was measured, not assumed - without that dispose the 2 s refresh leaked one
+  handle per call (~1800/hour with the panel open) that GC never reclaimed. The
+  snapshot API itself is synchronous and stateless; the UI decides when to call it.
 - **UI side (`AudioHQ.App`).** `AppMixerViewModel` holds the rows
   (`AppSessionViewModel`) and an `IsExpanded`/`IsEmpty` state. `Refresh()` reconciles
   the live snapshot against the existing rows by `AppKey` (update in place / add /
   remove), grouping multiple sessions/processes from the same executable into one
-  row so sliders do not rebuild or flicker. Opening the panel runs an immediate
+  row so sliders do not rebuild or flicker. The filter/dedup/diff decisions are the
+  pure `AppSessionReconciler`, generic over the `IAppSessionInfo` identity slice of
+  `AppSession`, so the reconcile rules are unit tested against plain fakes. Opening the panel runs an immediate
   refresh and starts a 2 s `DispatcherTimer`; closing the panel stops the timer.
   `AppIcon` extracts a frozen `ImageSource` from the
   exe via `System.Drawing.Icon` + `Imaging.CreateBitmapSourceFromHIcon`; it returns null
@@ -355,22 +428,62 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
   icon comes from `<ApplicationIcon>app.ico</ApplicationIcon>`; the .ico is
   generated by `tools/make-icon.ps1`.
 
+## Styling rules (AudioHQ.App)
+
+- **One source of truth.** `Resources/Theme/` owns every visual value: `Colors.xaml`
+  is the only place a hex literal belongs, `Semantic.xaml` names what a colour is
+  FOR (`Brush.Surface`, `Brush.AccentPositive`), and Typography/Spacing/Motion own
+  sizes, the 6px spacing rhythm plus radii, and durations/easing.
+- **Views and styles name roles, not values.** No view sets a raw `FontSize`,
+  `CornerRadius`, colour or margin; it references a token. `Resources/Controls/`
+  holds one file per control family, keyed styles only.
+- **Margins need a Thickness.** The `Spacing*` doubles cannot bind to `Margin`, so
+  use the `Inset.*` (uniform) and `Gap.*` (directional) thicknesses. Sizes that are
+  genuinely one-off geometry stay literal rather than being forced onto the scale.
+- **C# reads the same theme.** `ThemeResources.Brush/Color/DrawingColor` is the only
+  way code gets a theme value, and it throws on a missing key. Never re-declare a
+  colour in C# with a fallback - that is how the fader ramp, the knob and the tray
+  dot each ended up with their own drifting green.
+- **Coupled geometry gets a shared token.** Where two places must agree (the EQ
+  preset overlay sits on top of the combo's selection text), both read one token
+  (`ComboContentInset`) instead of repeating the number.
+
 ## Error handling & logging
 
 - Philosophy: device errors are EXPECTED states, not crashes. They surface as
-  per-strip `Status` / global `EngineStatus` strings; the app keeps running.
+  per-strip `ChannelViewModel.Status` strings and the global
+  `MixerViewModel.Status` bubble (a `MixerStatusViewModel` carrying the message
+  and its severity); the app keeps running.
 - `App.xaml.cs` hooks `DispatcherUnhandledException` (logs + message box,
   marks handled).
+- **Per-output fault isolation.** `MirrorEngine.OnDataAvailable` wraps each
+  output's `Write` in its own try/catch and routes the failure to
+  `OutputChannel.NoteWriteFailure`. One sick device therefore cannot unwind the
+  capture callback and cut audio to every other output. The guard takes no lock
+  and costs nothing on the happy path - it runs on the capture thread ~100x/s.
+- **Channel-count mismatch is a named failure.** When a device's mix format has
+  a different channel count than the capture format, `OutputChannel` throws
+  `ChannelCountMismatchException` (source vs device count) instead of surfacing
+  an opaque format error; `ChannelActivationService` maps it to a status the
+  user can act on.
 - `AudioHQ.Core.Log` appends to `audiohq.log` next to the exe; it swallows
   its own failures. Write a log line at every device/engine decision point
   (start, init mode, fallback, resync, failure).
+- Teardown never throws. `MirrorEngine.Stop` guards each step (stop capture,
+  dispose capture, dispose outputs, dispose source) individually and logs what
+  it swallowed, so a driver that throws on an already-dead device cannot leave
+  the engine holding a stale capture. `Start` calls `Stop` first, so this also
+  makes `Stop` safe to re-enter - the source-loss watchdog
+  (`MixerSourceRecoveryViewModel.TryRecover`) depends on it.
 
 ## Known limitations / upgrade candidates
 
-- Automated coverage is intentionally small but present: `AudioHQ.Tests` covers
-  hardware-free EQ, settings and app-mixer ordering behavior. Device enumeration, live WASAPI audio
-  flows, tray behavior and WPF layout still need manual verification until more
-  seams are extracted.
+- Automated coverage is hardware-free but real: `AudioHQ.Tests` covers the EQ
+  filter bank and settings model, app-mixer ordering and session reconcile,
+  source-selection rules, the channel state machine and activation status
+  mapping, tray options and window-position persistence. Device enumeration,
+  live WASAPI audio flows, tray behavior and WPF layout still need manual
+  verification until more seams are extracted.
 - Device hot-plug is handled by a 3 s `DispatcherTimer` poll (`RefreshDevices` /
   source-loss recovery), not an `IMMNotificationClient` subscription. The poll is
   simple and robust but reacts within one interval rather than instantly; moving
@@ -382,7 +495,9 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
 - `LoopbackMirror` is now a legacy milestone-1 reference path. The CLI tester
   uses `MirrorEngine`, so console smoke tests exercise the same fan-out path as
   the WPF app.
-- net7.0 is past Microsoft support EOL, but this workspace currently has only
-  .NET SDK 7.0 installed. Defer the `net8.0` migration until a .NET 8 SDK is
-  available, then bump the four TFMs (`App`, `Core`, `Cli`, `Tests`) together
-  and re-run the full suite.
+- The four projects moved from the EOL `net7.0` to `net10.0` in 0.5.34, once a
+  .NET 10 SDK was available to build it. The jump needed no code changes: no
+  removed API was in use, and nothing pinned a runtime version (no
+  `global.json`, no `RuntimeIdentifier`/`LangVersion` in any csproj). Retargeting
+  is not only the four TFMs - `start.bat` and `tools/publish.ps1` hardcode the
+  TFM in their output paths and go stale silently if missed.

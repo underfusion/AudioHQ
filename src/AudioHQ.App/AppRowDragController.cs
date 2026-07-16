@@ -77,7 +77,7 @@ public sealed class AppRowDragController
             ClearDropHighlight();
             _dropTarget = target;
             target.BorderThickness = new Thickness(0, 2, 0, 0);
-            target.BorderBrush = (Brush)Application.Current.Resources["AccentBlue"];
+            target.BorderBrush = ThemeResources.Brush("Brush.AccentInfo");
         }
 
         e.Handled = true;
@@ -120,7 +120,7 @@ public sealed class AppRowDragController
                     ShadowDepth = 4,
                     Opacity = 0.55,
                     Direction = 270,
-                    Color = Colors.Black,
+                    Color = ThemeResources.Color("Color.Black"),
                 },
             };
             var clickPos = e.GetPosition(row);

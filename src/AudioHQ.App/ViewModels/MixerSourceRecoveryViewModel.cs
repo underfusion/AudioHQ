@@ -19,6 +19,7 @@ public sealed class MixerSourceRecoveryViewModel
     private readonly Action _save;
     private readonly Action _sourceChanged;
     private readonly HashSet<string> _unstartableSources = new();
+    private readonly SourceDeviceSync _deviceSync;
     private bool _recovering;
     private int _resumeTicksLeft;
     private DateTime _lastTickUtc = DateTime.UtcNow;
@@ -39,6 +40,12 @@ public sealed class MixerSourceRecoveryViewModel
         _clearStatus = clearStatus;
         _save = save;
         _sourceChanged = sourceChanged;
+        // This class decides WHEN to look at the devices; _deviceSync does the reconciling.
+        _deviceSync = new SourceDeviceSync(
+            sources, channels, _unstartableSources,
+            () => SelectedSource,
+            replacement => SelectedSource = replacement,
+            save);
     }
 
     /// <summary>How often the background watchdog re-checks devices and engine health.</summary>
@@ -92,7 +99,7 @@ public sealed class MixerSourceRecoveryViewModel
                 return;
             }
 
-            RefreshDevices();
+            _deviceSync.Refresh();
 
             bool sourceGone = _engine.SourceId is not null
                               && _sources.All(d => d.ID != _engine.SourceId);
@@ -187,42 +194,10 @@ public sealed class MixerSourceRecoveryViewModel
         }
     }
 
+    /// <summary>Re-enumerate every endpoint with a fresh COM instance (post-resume).</summary>
     private void HardRefreshSources()
     {
-        List<MMDevice> current;
-        try { current = AudioDevices.GetActiveRenderDevices(); }
-        catch (Exception ex) { Log.Write($"HardRefreshSources failed: {ex.Message}"); return; }
-
-        var fresh = current.ToDictionary(d => d.ID);
-        var adopted = new HashSet<string>();
-
-        for (int i = _sources.Count - 1; i >= 0; i--)
-        {
-            var old = _sources[i];
-            if (fresh.TryGetValue(old.ID, out var replacement))
-            {
-                adopted.Add(old.ID);
-                _sources[i] = replacement;
-                if (ReferenceEquals(SelectedSource, old)) SelectedSource = replacement;
-                old.Dispose();
-            }
-            else
-            {
-                Log.Write($"Device gone after resume: '{old.FriendlyName}'");
-                _unstartableSources.Remove(old.ID);
-                _sources.RemoveAt(i);
-            }
-        }
-
-        foreach (var device in current)
-            if (!adopted.Contains(device.ID))
-            {
-                Log.Write($"Device appeared after resume: '{device.FriendlyName}'");
-                _sources.Add(device);
-            }
-
-        RebindAndUpdateChannelPresence();
-
+        _deviceSync.HardRefresh();
         _sourceChanged();
     }
 
@@ -232,7 +207,7 @@ public sealed class MixerSourceRecoveryViewModel
         _recovering = true;
         try
         {
-            RefreshDevices();
+            _deviceSync.Refresh();
 
             var source = ResolveSource();
             if (source is null)
@@ -263,12 +238,11 @@ public sealed class MixerSourceRecoveryViewModel
 
     private void TrySwitchToPreferred()
     {
-        if (PreferredSourceId is null || PreferredSourceId == _engine.SourceId) return;
-        if (_unstartableSources.Contains(PreferredSourceId)) return;
+        if (!SourceSelectionRules.ShouldSwitchToPreferred(
+                PreferredSourceId, _engine.SourceId, _unstartableSources,
+                _sources.Select(d => d.ID).ToList())) return;
 
-        var preferred = _sources.FirstOrDefault(d => d.ID == PreferredSourceId);
-        if (preferred is null) return;
-
+        var preferred = _sources.First(d => d.ID == PreferredSourceId);
         var fallback = SelectedSource;
         Log.Write($"HealthCheck: preferred source '{preferred.FriendlyName}' is back, switching from fallback '{fallback?.FriendlyName ?? "(none)"}'");
         SelectedSource = preferred;
@@ -291,80 +265,12 @@ public sealed class MixerSourceRecoveryViewModel
         _sourceChanged();
     }
 
-    private void RefreshDevices()
-    {
-        List<MMDevice> current;
-        try { current = AudioDevices.GetActiveRenderDevices(); }
-        catch (Exception ex) { Log.Write($"RefreshDevices failed: {ex.Message}"); return; }
-
-        var currentIds = current.Select(d => d.ID).ToHashSet();
-
-        for (int i = _sources.Count - 1; i >= 0; i--)
-            if (!currentIds.Contains(_sources[i].ID))
-            {
-                Log.Write($"Device removed: '{_sources[i].FriendlyName}'");
-                _unstartableSources.Remove(_sources[i].ID);
-                _sources.RemoveAt(i);
-            }
-
-        var knownIds = _sources.Select(d => d.ID).ToHashSet();
-        foreach (var device in current)
-        {
-            if (knownIds.Add(device.ID))
-            {
-                Log.Write($"Device appeared: '{device.FriendlyName}'");
-                _sources.Add(device);
-            }
-            else
-            {
-                device.Dispose();
-            }
-        }
-
-        RebindAndUpdateChannelPresence();
-    }
-
-    private void RebindAndUpdateChannelPresence()
-    {
-        var endpoints = _sources.Select(d => new AudioEndpointIdentity(d.ID, d.FriendlyName)).ToList();
-        var activeIds = endpoints.Select(endpoint => endpoint.Id).ToHashSet();
-        var reservedIds = _channels
-            .Where(channel => activeIds.Contains(channel.DeviceId))
-            .Select(channel => channel.DeviceId)
-            .ToHashSet();
-        bool rebound = false;
-
-        foreach (var channel in _channels)
-        {
-            if (!activeIds.Contains(channel.DeviceId))
-            {
-                string? replacementId = AudioEndpointIdentityResolver.Resolve(
-                    channel.DeviceId, channel.DeviceName, endpoints, reservedIds);
-                if (replacementId is not null)
-                {
-                    var replacement = _sources.First(device => device.ID == replacementId);
-                    channel.RebindDevice(replacement.ID, replacement.FriendlyName);
-                    reservedIds.Add(replacement.ID);
-                    rebound = true;
-                }
-            }
-
-            channel.IsSource = channel.DeviceId == SelectedSource?.ID;
-            channel.SetPresent(activeIds.Contains(channel.DeviceId));
-        }
-
-        if (rebound) _save();
-    }
-
     private MMDevice? ResolveSource()
     {
-        if (PreferredSourceId is not null)
-        {
-            var saved = _sources.FirstOrDefault(d => d.ID == PreferredSourceId);
-            if (saved is not null) return saved;
-        }
-
-        var defaultDevice = AudioDevices.GetDefaultRender();
-        return _sources.FirstOrDefault(d => d.ID == defaultDevice.ID) ?? _sources.FirstOrDefault();
+        var id = SourceSelectionRules.Resolve(
+            _sources.Select(d => d.ID).ToList(),
+            PreferredSourceId,
+            () => AudioDevices.GetDefaultRender().ID);
+        return id is null ? null : _sources.First(d => d.ID == id);
     }
 }

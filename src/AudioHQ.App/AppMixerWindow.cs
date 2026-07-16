@@ -40,7 +40,7 @@ public sealed class AppMixerWindow : Window
         Title = "AudioHQ - Mixer";
         ShowInTaskbar = false;
         ResizeMode = ResizeMode.NoResize;
-        Background = (Brush)owner.FindResource("BgBrush");
+        Background = ThemeResources.Brush("Brush.Surface");
         double mixerWidth = (double)owner.FindResource("AppMixerPanelWidth");
         SizeToContent = SizeToContent.WidthAndHeight;
         MaxHeight = AvailableHeight();
@@ -68,7 +68,7 @@ public sealed class AppMixerWindow : Window
             Width = mixerWidth / 2,
             Height = 2,
             CornerRadius = new CornerRadius(1),
-            Background = (Brush)owner.FindResource("DimTextBrush"),
+            Background = ThemeResources.Brush("Brush.TextMuted"),
             Opacity = 0.65,
             VerticalAlignment = VerticalAlignment.Bottom,
             HorizontalAlignment = HorizontalAlignment.Center,

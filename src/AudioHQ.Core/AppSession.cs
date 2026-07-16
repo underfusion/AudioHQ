@@ -13,16 +13,15 @@ namespace AudioHQ.Core;
 /// COM access here is guarded and never throws - a dead session reports its last values
 /// and silently ignores writes.
 /// </summary>
-public sealed class AppSession
+public sealed class AppSession : IAppSessionInfo
 {
-    // Rooting the source device keeps the session's COM objects alive for as long as this
-    // wrapper lives, even after the enumerator that produced it has gone out of scope.
-    private readonly MMDevice _device;
+    // Rooting the session's own volume object is enough to keep it usable: its COM reference
+    // is independent of the device and the enumerator that produced it, so it survives both
+    // going away (the caller disposes the device right after taking the snapshot).
     private readonly SimpleAudioVolume? _volume;
 
-    internal AppSession(MMDevice device, AudioSessionControl control)
+    internal AppSession(AudioSessionControl control)
     {
-        _device = device;
         _volume = TryGet(() => control.SimpleAudioVolume);
 
         ProcessId = TryGet(() => control.GetProcessID);

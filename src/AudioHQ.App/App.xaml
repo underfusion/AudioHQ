@@ -5,9 +5,25 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <!-- Theme first: everything below resolves StaticResource against these.
+                     Colors -> Semantic depends on that order too. -->
+                <ResourceDictionary Source="Resources/Theme/Colors.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Semantic.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Typography.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Spacing.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Motion.xaml" />
+
+                <!-- Then converters and layout tokens, which the control styles read. -->
                 <ResourceDictionary Source="Resources/Tokens.xaml" />
-                <ResourceDictionary Source="Resources/StripStyles.xaml" />
-                <ResourceDictionary Source="Resources/AppMixerStyles.xaml" />
+
+                <!-- One file per control family. -->
+                <ResourceDictionary Source="Resources/Controls/Text.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Cards.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Buttons.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Toggles.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Sliders.xaml" />
+                <ResourceDictionary Source="Resources/Controls/ScrollBars.xaml" />
+                <ResourceDictionary Source="Resources/Controls/Inputs.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
