@@ -3,6 +3,14 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.28 - 2026-07-16
+
+### Changed
+- Internal: the EQ preset store's saving rules now have automated coverage - the built-in
+  Default preset stays untouchable (even via a hand-edited settings file), saving over an
+  existing name overwrites it instead of duplicating, and saved curves are protected from
+  later edits in the editor. No change in behavior; 12 new tests.
+
 ## 0.5.27 - 2026-07-16
 
 ### Fixed
