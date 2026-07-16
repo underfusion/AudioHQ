@@ -3,6 +3,22 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.34 - 2026-07-16
+
+### Changed
+- Retargeted all four projects from the end-of-life `net7.0` to `net10.0`
+  (`Core`/`Cli` to `net10.0`, `App`/`Tests` to `net10.0-windows`). net7.0 stopped
+  receiving security fixes in May 2024; net10 is the current long-term support
+  release. No code changed: no removed API was in use, and nothing pinned a
+  runtime version (no `global.json`, no `RuntimeIdentifier` or `LangVersion`).
+- Updated the TFM hardcoded in the output paths of `start.bat` and
+  `tools/publish.ps1`. These are easy to miss because neither fails at build
+  time - `publish.ps1` would have thrown "publish output not found" and
+  `start.bat` would have launched a stale exe.
+- `docs/ARCHITECTURE.md`, `README.md` and `CLAUDE.md`: refreshed the project
+  diagram and build paths; replaced the "net7.0 is past EOL, defer the migration
+  until an SDK exists" note with what was actually done.
+
 ## 0.5.33 - 2026-07-16
 
 ### Fixed

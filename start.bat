@@ -9,4 +9,4 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-start "" "src\AudioHQ.App\bin\Debug\net7.0-windows\AudioHQ.exe"
+start "" "src\AudioHQ.App\bin\Debug\net10.0-windows\AudioHQ.exe"

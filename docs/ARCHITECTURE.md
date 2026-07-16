@@ -9,10 +9,10 @@
 Four projects, strict dependency direction (UI never leaks into the engine):
 
 ```
-AudioHQ.App (WPF, net7.0-windows) --.
-                                     |--> AudioHQ.Core (net7.0, NAudio 2.3)
-AudioHQ.Cli (console, net7.0)     --'
-AudioHQ.Tests (xUnit, net7.0-windows) --> AudioHQ.Core + AudioHQ.App
+AudioHQ.App (WPF, net10.0-windows) --.
+                                      |--> AudioHQ.Core (net10.0, NAudio 2.3)
+AudioHQ.Cli (console, net10.0)     --'
+AudioHQ.Tests (xUnit, net10.0-windows) --> AudioHQ.Core + AudioHQ.App
 ```
 
 - **AudioHQ.Core** - audio engine. No WPF/WinForms references, ever.
@@ -22,7 +22,7 @@ AudioHQ.Tests (xUnit, net7.0-windows) --> AudioHQ.Core + AudioHQ.App
   without the GUI.
 - **AudioHQ.Tests** - focused xUnit safety-net tests for hardware-free logic:
   EQ settings/model behavior and settings serialization. It targets
-  `net7.0-windows` because it references app view-model types from the WPF
+  `net10.0-windows` because it references app view-model types from the WPF
   project.
 
 Version is centralized in `Directory.Build.props` (every assembly inherits
@@ -484,7 +484,9 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
 - `LoopbackMirror` is now a legacy milestone-1 reference path. The CLI tester
   uses `MirrorEngine`, so console smoke tests exercise the same fan-out path as
   the WPF app.
-- net7.0 is past Microsoft support EOL, but this workspace currently has only
-  .NET SDK 7.0 installed. Defer the `net8.0` migration until a .NET 8 SDK is
-  available, then bump the four TFMs (`App`, `Core`, `Cli`, `Tests`) together
-  and re-run the full suite.
+- The four projects moved from the EOL `net7.0` to `net10.0` in 0.5.34, once a
+  .NET 10 SDK was available to build it. The jump needed no code changes: no
+  removed API was in use, and nothing pinned a runtime version (no
+  `global.json`, no `RuntimeIdentifier`/`LangVersion` in any csproj). Retargeting
+  is not only the four TFMs - `start.bat` and `tools/publish.ps1` hardcode the
+  TFM in their output paths and go stale silently if missed.

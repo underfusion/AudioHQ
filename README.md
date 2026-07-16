@@ -88,7 +88,7 @@ dotnet run --project src/AudioHQ.Cli   # console tester: mirror to a single devi
 ```
 
 The runtime log is written to `audiohq.log` next to the executable
-(`src/AudioHQ.App/bin/Debug/net7.0-windows/`).
+(`src/AudioHQ.App/bin/Debug/net10.0-windows/`).
 
 ## Portable release
 
