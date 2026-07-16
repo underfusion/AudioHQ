@@ -134,6 +134,35 @@ Key decisions:
   would block capture/render until the UI thread is free. With no `Application`
   (unit tests, shutdown) it runs the action inline.
 
+## Device object lifetime (MMDevice ownership)
+
+One rule, because a COM endpoint released twice is as bad as one never released:
+
+- **Receiver owns, on success.** A class that is handed an `MMDevice` and keeps it
+  (`OutputChannel`, `MirrorEngine`, `LoopbackMirror`) owns it and disposes it - but
+  ownership transfers only once the constructor/`Start` SUCCEEDS. If construction
+  throws, the device is still the caller's, and the caller disposes it
+  (`ChannelActivationService.CleanUpFailedActivation`). Disposing on both sides would
+  over-release the COM object.
+- **Callers pass a fresh instance.** Never hand one of these a cached or shared
+  device; see the Fresh MMDevice policy below.
+- **Whoever drops it from a list disposes it.** `SourceDeviceSync` disposes every
+  device it removes from `Sources` (and every duplicate it enumerates but does not
+  keep). Dropping the reference alone holds the endpoint's COM handles until a GC
+  that may never come. This is safe even if `SelectedSource` still points at it: a
+  disposed `MMDevice` keeps answering `FriendlyName`/`ID`.
+- **Short-lived snapshots dispose immediately.** `AppSessions.ForDefaultRender`
+  disposes its device as soon as the snapshot is built, in a `finally`. The
+  `AppSession` rows outlive it and keep working, because a session's
+  `SimpleAudioVolume` holds a COM reference independent of the device - verified by
+  measurement, see the per-app mixer section.
+- **Teardown never throws.** Disposing a device that already went away can throw from
+  the driver; every teardown path guards each step and logs what it swallowed
+  (`MirrorEngine.Stop`, `OutputChannel.Dispose`, `LoopbackMirror.Dispose`).
+
+The exception: the `MMDevice` instances in `Sources` are UI-only (combo box, master
+volume) and are owned by that list, not by anything that opens an audio client.
+
 ## Device-loss recovery (watchdog, sleep/resume)
 
 The capture source or any output can vanish mid-session (USB dongle unplugged,

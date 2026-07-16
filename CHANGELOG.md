@@ -3,6 +3,13 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.25 - 2026-07-16
+
+### Changed
+- Internal: one documented rule now covers who releases a Windows audio device, and the
+  last class that ignored it (the legacy single-target mirror) follows it. Its teardown
+  is also guarded, so a device that has already gone away cannot leave endpoints behind.
+
 ## 0.5.24 - 2026-07-16
 
 ### Changed

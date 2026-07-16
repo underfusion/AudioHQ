@@ -10,7 +10,7 @@
     All projects under src/ inherit this file automatically (MSBuild convention).
   -->
   <PropertyGroup>
-    <Version>0.5.24</Version>
+    <Version>0.5.25</Version>
     <Product>AudioHQ</Product>
     <Authors>underfusion</Authors>
     <AnalysisLevel>latest</AnalysisLevel>
