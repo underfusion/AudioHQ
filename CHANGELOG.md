@@ -3,6 +3,17 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.17 - 2026-07-16
+
+### Changed
+- The channel fader's green is now the same green as the ON pill and the app-mixer
+  faders (a slightly deeper green than before). It had drifted to its own lighter
+  shade. Boost amber and max-boost red are unchanged.
+- The tray icon's and taskbar overlay's "active" dot now use the app's green instead
+  of the generic Windows lime green, so every "on" indicator matches.
+- Colors, and the app-mixer slide timing, are no longer duplicated in C#: they all
+  read from the shared theme.
+
 ## 0.5.16 - 2026-07-16
 
 ### Changed

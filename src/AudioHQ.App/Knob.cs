@@ -94,9 +94,9 @@ public sealed class Knob : FrameworkElement
         var centre = new Point(ActualWidth / 2, ActualHeight / 2);
         double radius = size / 2 - 1;
 
-        var dial = Brush("ButtonBrush", Color.FromRgb(0x2D, 0x35, 0x45));
-        var rim = Brush("DimTextBrush", Color.FromRgb(0x8B, 0x93, 0xA5));
-        var pointer = Brush("AccentBlue", Color.FromRgb(0x3B, 0x82, 0xF6));
+        var dial = ThemeResources.Brush("Brush.Control");
+        var rim = ThemeResources.Brush("Brush.TextMuted");
+        var pointer = ThemeResources.Brush("Brush.AccentInfo");
 
         // A transparent backing so the whole bounds is hit-testable (drag anywhere on the knob).
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, ActualWidth, ActualHeight));
@@ -111,9 +111,4 @@ public sealed class Knob : FrameworkElement
             centre + dir * (radius * 0.35), tip);
     }
 
-    private Brush Brush(string key, Color fallback)
-    {
-        if (TryFindResource(key) is Brush b) return b;
-        return new SolidColorBrush(fallback);
-    }
 }

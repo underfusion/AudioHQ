@@ -31,8 +31,8 @@
     <SolidColorBrush x:Key="Brush.AccentNegative" po:Freeze="True" Color="{StaticResource Color.Red}" />
     <SolidColorBrush x:Key="Brush.AccentInfo" po:Freeze="True" Color="{StaticResource Color.Blue}" />
 
-    <!-- Fader ramp (gain: unity -> boost -> max boost). -->
-    <SolidColorBrush x:Key="Brush.FaderGreen" po:Freeze="True" Color="{StaticResource Color.FaderGreen}" />
+    <!-- Fader ramp (gain: unity -> boost -> max boost). Green reuses Brush.AccentPositive,
+         so every "level is good" green in the app is the same green. -->
     <SolidColorBrush x:Key="Brush.FaderAmber" po:Freeze="True" Color="{StaticResource Color.FaderAmber}" />
     <SolidColorBrush x:Key="Brush.FaderRed" po:Freeze="True" Color="{StaticResource Color.FaderRed}" />
 

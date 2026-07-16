@@ -96,7 +96,9 @@ public sealed class TrayController : IDisposable
             using var baseBmp = base16.ToBitmap();
             g.DrawImage(baseBmp, 0, 0, 16, 16);
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.FillEllipse(Brushes.LimeGreen, 10, 10, 5, 5);
+            // The app's own green, not GDI's LimeGreen - same "on" meaning as the ON pill.
+            using var dotBrush = new SolidBrush(ThemeResources.DrawingColor("Color.Green"));
+            g.FillEllipse(dotBrush, 10, 10, 5, 5);
         }
         var handle = bmp.GetHicon();
         try { return (Icon)Icon.FromHandle(handle).Clone(); }

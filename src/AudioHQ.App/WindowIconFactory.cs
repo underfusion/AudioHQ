@@ -36,7 +36,10 @@ public static class WindowIconFactory
                 if (dot)
                 {
                     g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    g.FillEllipse(System.Drawing.Brushes.LimeGreen, 20, 20, 11, 11);
+                    // The app's own green, not GDI's LimeGreen - this dot means the same
+                    // "on" as the ON pill and must not be a different green from it.
+                    using var dotBrush = new System.Drawing.SolidBrush(ThemeResources.DrawingColor("Color.Green"));
+                    g.FillEllipse(dotBrush, 20, 20, 11, 11);
                 }
             }
             baseIcon?.Dispose();

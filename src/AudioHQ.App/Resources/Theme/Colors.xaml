@@ -26,11 +26,11 @@
     <Color x:Key="Color.Red">#FFEF4444</Color>
     <Color x:Key="Color.Blue">#FF3B82F6</Color>
 
-    <!-- Fader ramp. These are deliberately lighter than the accents above: they sit on a
-         moving fader against the card fill and need more contrast there. Reconciling them
-         with the accents is a separate, user-visible decision (see the Phase 3 code-behind
-         colour item) - keep the current values until then. -->
-    <Color x:Key="Color.FaderGreen">#FF4ADE80</Color>
+    <!-- Fader ramp (gain: unity -> boost -> max boost). The green is Color.Green, the same
+         one the app-mixer fader fill and the ON pill already use - it had drifted to its own
+         lighter #4ADE80 only in the channel fader. Amber has no accent equivalent, so it
+         lives here; the red stays lighter than Color.Red because it sits on a moving fader
+         against the card fill rather than on a filled button. -->
     <Color x:Key="Color.FaderAmber">#FFFBBF24</Color>
     <Color x:Key="Color.FaderRed">#FFF87171</Color>
 

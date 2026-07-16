@@ -228,7 +228,7 @@ public partial class EqWindow : Window
         CurveCanvas.Children.Add(new Line
         {
             X1 = 0, X2 = w, Y1 = baselineY, Y2 = baselineY,
-            Stroke = (Brush)FindResource("AccentGreen"), StrokeThickness = 2,
+            Stroke = ThemeResources.Brush("Brush.AccentPositive"), StrokeThickness = 2,
         });
 
         // Average fader spacing sets the bell width scale; Q narrows or widens it per band.
@@ -253,7 +253,7 @@ public partial class EqWindow : Window
         CurveCanvas.Children.Add(new Polyline
         {
             Points = curve,
-            Stroke = (Brush)FindResource("AccentBlue"),
+            Stroke = ThemeResources.Brush("Brush.AccentInfo"),
             StrokeThickness = 2,
             StrokeLineJoin = PenLineJoin.Round,
         });
