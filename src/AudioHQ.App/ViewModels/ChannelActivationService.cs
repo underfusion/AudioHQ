@@ -9,8 +9,11 @@ public sealed record ChannelActivationResult(OutputChannel? Channel, bool Device
     public bool IsActive => Channel is not null;
 }
 
-/// <summary>Creates live output channels and maps activation failures to UI status text.</summary>
-public sealed class ChannelActivationService
+/// <summary>
+/// Creates live output channels and maps activation failures to UI status text.
+/// The real, WASAPI-backed implementation of <see cref="IChannelActivationService"/>.
+/// </summary>
+public sealed class ChannelActivationService : IChannelActivationService
 {
     private readonly MirrorEngine _engine;
     private string _deviceId;

@@ -3,6 +3,14 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.26 - 2026-07-16
+
+### Changed
+- Internal: a channel's reconnect logic can now be tested without real audio hardware, so
+  the awkward cases have automated coverage - a device that disappears at the moment of
+  activation, and one that keeps failing until the retry limit stops it being hammered.
+  No change in behavior; 11 new tests.
+
 ## 0.5.25 - 2026-07-16
 
 ### Changed

@@ -5,7 +5,7 @@ namespace AudioHQ.App.ViewModels;
 
 /// <summary>What the live output needs from the strip in order to open. Snapshotted at the
 /// moment of activation, so the controller never reaches back into the view model's state.</summary>
-internal readonly record struct ChannelActivationRequest(
+public readonly record struct ChannelActivationRequest(
     string Name, double Gain, bool Muted, EqSettings Eq);
 
 /// <summary>
@@ -19,10 +19,10 @@ internal readonly record struct ChannelActivationRequest(
 /// Every transition here is mechanical - none of them touch the user's ON intent, which stays
 /// in the view model. That is what lets a channel come back by itself after a device drops.
 /// </summary>
-internal sealed class ChannelLifecycleController
+public sealed class ChannelLifecycleController
 {
     private readonly MirrorEngine _engine;
-    private readonly ChannelActivationService _activation;
+    private readonly IChannelActivationService _activation;
     private readonly ChannelRetryBudget _retryBudget = new();
 
     private readonly Func<ChannelActivationRequest> _request;
@@ -44,10 +44,13 @@ internal sealed class ChannelLifecycleController
         Action activeChanged,
         Action availabilityChanged,
         Action refreshStatus,
-        Action<string> setStatus)
+        Action<string> setStatus,
+        IChannelActivationService? activation = null)
     {
         _engine = engine;
-        _activation = new ChannelActivationService(engine, deviceId, latencyMs);
+        // Default to the real WASAPI service; tests pass a fake. Constructor injection with a
+        // default argument, matching the rest of the codebase (no DI framework).
+        _activation = activation ?? new ChannelActivationService(engine, deviceId, latencyMs);
         IsPresent = present;
         _request = request;
         _channelName = channelName;
