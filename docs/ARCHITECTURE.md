@@ -2,7 +2,7 @@
 
 > Keep this file truthful to the code. Update it in the same commit as any
 > behavior change it describes (repository documentation convention).
-> Last updated: 2026-07-09 (v0.8.3).
+> Last updated: 2026-07-16 (v0.5.32).
 
 ## Solution layout
 
@@ -224,8 +224,8 @@ it is back, else the current default render device - the pure preferred/default/
 fallback rule lives in `SourceSelectionRules`, unit tested without audio endpoints),
 calls `RestartEngine` to
 rebuild capture and re-activate the channels whose intent is ON, then reports the
-outcome in `EngineStatus` (`Source switched to 'X'.` when it had to fall back to a
-different device, cleared on a clean same-device recovery) and persists the choice.
+outcome in `MixerViewModel.Status` (`Source switched to 'X'.` when it had to fall back
+to a different device, cleared on a clean same-device recovery) and persists the choice.
 
 **Preferred vs. active source.** `_preferredSourceId` is the source the user
 actually chose (persisted as `SourceDeviceId`); `_selectedSource` is whatever is
@@ -440,9 +440,21 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
 ## Error handling & logging
 
 - Philosophy: device errors are EXPECTED states, not crashes. They surface as
-  per-strip `Status` / global `EngineStatus` strings; the app keeps running.
+  per-strip `ChannelViewModel.Status` strings and the global
+  `MixerViewModel.Status` bubble (a `MixerStatusViewModel` carrying the message
+  and its severity); the app keeps running.
 - `App.xaml.cs` hooks `DispatcherUnhandledException` (logs + message box,
   marks handled).
+- **Per-output fault isolation.** `MirrorEngine.OnDataAvailable` wraps each
+  output's `Write` in its own try/catch and routes the failure to
+  `OutputChannel.NoteWriteFailure`. One sick device therefore cannot unwind the
+  capture callback and cut audio to every other output. The guard takes no lock
+  and costs nothing on the happy path - it runs on the capture thread ~100x/s.
+- **Channel-count mismatch is a named failure.** When a device's mix format has
+  a different channel count than the capture format, `OutputChannel` throws
+  `ChannelCountMismatchException` (source vs device count) instead of surfacing
+  an opaque format error; `ChannelActivationService` maps it to a status the
+  user can act on.
 - `AudioHQ.Core.Log` appends to `audiohq.log` next to the exe; it swallows
   its own failures. Write a log line at every device/engine decision point
   (start, init mode, fallback, resync, failure).
@@ -455,10 +467,12 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
 
 ## Known limitations / upgrade candidates
 
-- Automated coverage is intentionally small but present: `AudioHQ.Tests` covers
-  hardware-free EQ, settings and app-mixer ordering behavior. Device enumeration, live WASAPI audio
-  flows, tray behavior and WPF layout still need manual verification until more
-  seams are extracted.
+- Automated coverage is hardware-free but real: `AudioHQ.Tests` covers the EQ
+  filter bank and settings model, app-mixer ordering and session reconcile,
+  source-selection rules, the channel state machine and activation status
+  mapping, tray options and window-position persistence. Device enumeration,
+  live WASAPI audio flows, tray behavior and WPF layout still need manual
+  verification until more seams are extracted.
 - Device hot-plug is handled by a 3 s `DispatcherTimer` poll (`RefreshDevices` /
   source-loss recovery), not an `IMMNotificationClient` subscription. The poll is
   simple and robust but reacts within one interval rather than instantly; moving

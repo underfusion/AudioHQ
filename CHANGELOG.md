@@ -3,6 +3,21 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.32 - 2026-07-16
+
+### Documentation
+- `docs/ARCHITECTURE.md`: corrected the stale version stamp (claimed v0.8.3), replaced the
+  two references to a non-existent `EngineStatus` with the real `MixerViewModel.Status` /
+  `ChannelViewModel.Status`, documented per-output fault isolation in the capture callback
+  and the named channel-count mismatch failure, and refreshed the test-coverage note.
+- `CLAUDE.md`: the project map now lists every app class that was missing from it
+  (`App.xaml(.cs)`, `MixerSettings.cs`, `ViewModelBase.cs`, `OptionsWindow.xaml(.cs)`,
+  `AppMixerWindow.cs`, `TrayController.cs`, `StartupRegistration.cs`,
+  `GainToBrushConverter.cs`, `RelayCommand.cs`).
+- `CLAUDE.md`: recorded two rules for future work - the one-theme styling rule (every
+  visual value comes from `Resources/Theme/*`, no literal colours anywhere else) and the
+  MMDevice ownership rule (receiver-owns, on success).
+
 ## 0.5.31 - 2026-07-16
 
 ### Changed
