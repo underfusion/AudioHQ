@@ -13,7 +13,7 @@ namespace AudioHQ.Core;
 /// COM access here is guarded and never throws - a dead session reports its last values
 /// and silently ignores writes.
 /// </summary>
-public sealed class AppSession
+public sealed class AppSession : IAppSessionInfo
 {
     // Rooting the session's own volume object is enough to keep it usable: its COM reference
     // is independent of the device and the enumerator that produced it, so it survives both

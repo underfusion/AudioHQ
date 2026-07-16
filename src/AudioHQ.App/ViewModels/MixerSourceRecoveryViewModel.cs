@@ -238,12 +238,11 @@ public sealed class MixerSourceRecoveryViewModel
 
     private void TrySwitchToPreferred()
     {
-        if (PreferredSourceId is null || PreferredSourceId == _engine.SourceId) return;
-        if (_unstartableSources.Contains(PreferredSourceId)) return;
+        if (!SourceSelectionRules.ShouldSwitchToPreferred(
+                PreferredSourceId, _engine.SourceId, _unstartableSources,
+                _sources.Select(d => d.ID).ToList())) return;
 
-        var preferred = _sources.FirstOrDefault(d => d.ID == PreferredSourceId);
-        if (preferred is null) return;
-
+        var preferred = _sources.First(d => d.ID == PreferredSourceId);
         var fallback = SelectedSource;
         Log.Write($"HealthCheck: preferred source '{preferred.FriendlyName}' is back, switching from fallback '{fallback?.FriendlyName ?? "(none)"}'");
         SelectedSource = preferred;
@@ -268,13 +267,10 @@ public sealed class MixerSourceRecoveryViewModel
 
     private MMDevice? ResolveSource()
     {
-        if (PreferredSourceId is not null)
-        {
-            var saved = _sources.FirstOrDefault(d => d.ID == PreferredSourceId);
-            if (saved is not null) return saved;
-        }
-
-        var defaultDevice = AudioDevices.GetDefaultRender();
-        return _sources.FirstOrDefault(d => d.ID == defaultDevice.ID) ?? _sources.FirstOrDefault();
+        var id = SourceSelectionRules.Resolve(
+            _sources.Select(d => d.ID).ToList(),
+            PreferredSourceId,
+            () => AudioDevices.GetDefaultRender().ID);
+        return id is null ? null : _sources.First(d => d.ID == id);
     }
 }

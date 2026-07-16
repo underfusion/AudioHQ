@@ -220,7 +220,9 @@ the app alive and self-healing:
   are picked up as they appear.
 
 `TryRecover` (re-entrancy guarded) re-resolves a live source (the preferred one if
-it is back, else the current default render device), calls `RestartEngine` to
+it is back, else the current default render device - the pure preferred/default/first
+fallback rule lives in `SourceSelectionRules`, unit tested without audio endpoints),
+calls `RestartEngine` to
 rebuild capture and re-activate the channels whose intent is ON, then reports the
 outcome in `EngineStatus` (`Source switched to 'X'.` when it had to fall back to a
 different device, cleared on a clean same-device recovery) and persists the choice.
@@ -233,7 +235,8 @@ Only an explicit pick (the `SelectedSource` setter) changes the preference, and
 `Save` writes `_preferredSourceId`, never a fallback, so a temporary fallback can
 never overwrite the real preference. When the watchdog finds capture healthy but
 running on a fallback, `TrySwitchToPreferred` switches back to the preferred device
-as soon as it reappears (status `Source restored to 'X'.`). A device that refuses
+as soon as it reappears (status `Source restored to 'X'.`); whether a switch attempt
+is due is `SourceSelectionRules.ShouldSwitchToPreferred`. A device that refuses
 to start is recorded in `_unstartableSources` and not retried until it disconnects
 and reconnects, so the app never spins on, e.g., a device locked in exclusive mode.
 
@@ -336,7 +339,9 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
   (`AppSessionViewModel`) and an `IsExpanded`/`IsEmpty` state. `Refresh()` reconciles
   the live snapshot against the existing rows by `AppKey` (update in place / add /
   remove), grouping multiple sessions/processes from the same executable into one
-  row so sliders do not rebuild or flicker. Opening the panel runs an immediate
+  row so sliders do not rebuild or flicker. The filter/dedup/diff decisions are the
+  pure `AppSessionReconciler`, generic over the `IAppSessionInfo` identity slice of
+  `AppSession`, so the reconcile rules are unit tested against plain fakes. Opening the panel runs an immediate
   refresh and starts a 2 s `DispatcherTimer`; closing the panel stops the timer.
   `AppIcon` extracts a frozen `ImageSource` from the
   exe via `System.Drawing.Icon` + `Imaging.CreateBitmapSourceFromHIcon`; it returns null

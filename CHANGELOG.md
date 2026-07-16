@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.30 - 2026-07-16
+
+### Changed
+- Internal: the app-mixer's refresh rules (skip AudioHQ itself and System Sounds, one row
+  per app, update/drop/append without disturbing the user's order) and the source pick
+  rules (saved device first, else system default, else first available; when to switch
+  back to the saved device) now live in two small pure classes with their own tests.
+  No change in behavior; 15 new tests, 111 total.
+
 ## 0.5.29 - 2026-07-16
 
 ### Changed
