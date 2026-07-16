@@ -3,6 +3,14 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.23 - 2026-07-16
+
+### Changed
+- Internal: an output strip's device side (opening and closing the live output, the
+  reconnect retry budget, and whether its device is plugged in) moved into its own class,
+  leaving the strip itself to hold only what you can see and change. No change in
+  behavior. All four oversized files are now under the size limit.
+
 ## 0.5.22 - 2026-07-16
 
 ### Changed

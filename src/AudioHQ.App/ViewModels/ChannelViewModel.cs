@@ -12,17 +12,12 @@ namespace AudioHQ.App.ViewModels;
 /// </summary>
 public sealed class ChannelViewModel : ViewModelBase
 {
-    private readonly MirrorEngine _engine;
     private readonly Action _onChanged;
     private readonly EqViewModel _eq;
     private readonly EqPresetStore _presets;
-    private readonly ChannelActivationService _activation;
-    private readonly ChannelRetryBudget _retryBudget = new();
-    private OutputChannel? _channel;
+    private readonly ChannelLifecycleController _lifecycle;
 
-    private bool _isActive;
     private bool _wantsActive;
-    private bool _isPresent;
     private bool _isMuted;
     private double _gain;
     private string _name;
@@ -42,19 +37,28 @@ public sealed class ChannelViewModel : ViewModelBase
         EqPresetStore presets, EqSettings? eq = null, string? deviceName = null,
         bool muted = false)
     {
-        _engine = engine;
         DeviceId = deviceId;
         DeviceName = string.IsNullOrWhiteSpace(deviceName) ? name : deviceName;
-        _isPresent = present;
         _onChanged = onChanged;
         _presets = presets;
-        _activation = new ChannelActivationService(engine, deviceId, latencyMs);
         _gain = gain;
         // Restored through the field, not the property: the setter would flag settings dirty
         // just for loading them back.
         _isMuted = muted;
         _name = string.IsNullOrWhiteSpace(name) ? "Channel" : name;
         _eq = new EqViewModel(eq, ApplyEq);
+
+        // The device half of the strip. It owns the live output and the retry budget and
+        // calls back here when the DEVICE changes something; this class owns what the USER
+        // changes.
+        _lifecycle = new ChannelLifecycleController(
+            engine, deviceId, latencyMs, present,
+            request: () => new ChannelActivationRequest(Name, _gain, _isMuted, _eq.ToSettings()),
+            channelName: () => Name,
+            activeChanged: () => OnPropertyChanged(nameof(IsActive)),
+            availabilityChanged: () => OnPropertyChanged(nameof(IsAvailable)),
+            refreshStatus: RefreshUnavailableStatus,
+            setStatus: status => Status = status);
     }
 
     /// <summary>The editable graphic EQ for this channel (bound by the EQ editor window).</summary>
@@ -66,7 +70,7 @@ public sealed class ChannelViewModel : ViewModelBase
     /// <summary>Push the current EQ curve onto the live output (if active) and persist it.</summary>
     private void ApplyEq()
     {
-        _channel?.Equalizer.Configure(_eq.ToSettings());
+        _lifecycle.Channel?.Equalizer.Configure(_eq.ToSettings());
         OnPropertyChanged(nameof(EqEnabled));
         _onChanged();
     }
@@ -82,10 +86,10 @@ public sealed class ChannelViewModel : ViewModelBase
     }
 
     /// <summary>True while the saved device is currently enumerated as active.</summary>
-    public bool IsPresent => _isPresent;
+    public bool IsPresent => _lifecycle.IsPresent;
 
     /// <summary>True only when the channel can actually mirror (device present and not the source).</summary>
-    public bool IsAvailable => _isPresent && !_isSource;
+    public bool IsAvailable => _lifecycle.IsPresent && !_isSource;
 
     /// <summary>
     /// Persisted "should be ON" intent. Survives device loss, sleep/resume and engine
@@ -135,7 +139,7 @@ public sealed class ChannelViewModel : ViewModelBase
             _isSource = value;
             // Becoming the source suspends mirroring but keeps the ON intent: when the
             // source moves elsewhere again, the watchdog brings this channel back.
-            if (value && _isActive) Suspend();
+            if (value && _lifecycle.IsActive) Suspend();
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsAvailable));
             RefreshUnavailableStatus();
@@ -144,15 +148,15 @@ public sealed class ChannelViewModel : ViewModelBase
 
     public bool IsActive
     {
-        get => _isActive;
+        get => _lifecycle.IsActive;
         set
         {
-            if (_isActive == value) return;
+            if (_lifecycle.IsActive == value) return;
 
             // This setter is the USER path (toggle in the UI, or the mixer acting for the
             // user): it updates the intent. Mechanical stops go through Suspend().
             _wantsActive = value;
-            _retryBudget.Reset();
+            _lifecycle.ResetAutoRetry();
 
             if (value)
             {
@@ -162,12 +166,11 @@ public sealed class ChannelViewModel : ViewModelBase
                     OnPropertyChanged();
                     return;
                 }
-                Activate();
+                _lifecycle.Activate();
             }
             else
             {
-                DetachChannel();
-                _isActive = false;
+                _lifecycle.Deactivate();
                 RefreshUnavailableStatus();
             }
 
@@ -186,7 +189,7 @@ public sealed class ChannelViewModel : ViewModelBase
         set
         {
             _isMuted = value;
-            if (_channel is not null) _channel.Muted = value;
+            if (_lifecycle.Channel is not null) _lifecycle.Channel.Muted = value;
             OnPropertyChanged();
             _onChanged();
         }
@@ -198,7 +201,7 @@ public sealed class ChannelViewModel : ViewModelBase
         set
         {
             _gain = value;
-            if (_channel is not null) _channel.Gain = (float)value;
+            if (_lifecycle.Channel is not null) _lifecycle.Channel.Gain = (float)value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(GainPercent));
             _onChanged();
@@ -213,105 +216,33 @@ public sealed class ChannelViewModel : ViewModelBase
         private set { _status = value; OnPropertyChanged(); }
     }
 
-    /// <summary>Open a live output on a FRESH device instance. Sets _isActive on success.</summary>
-    private void Activate()
-    {
-        var result = _activation.Activate(Name, _gain, _isMuted, _eq.ToSettings(), OnPlaybackStopped);
-        if (result.DeviceMissing)
-        {
-            SetPresent(false);
-            return;
-        }
-
-        _channel = result.Channel;
-        _isActive = result.IsActive;
-        Status = result.Status;
-        if (_isActive)
-        {
-            _retryBudget.Reset();
-        }
-    }
-
-    /// <summary>Close the live output (if any) without touching intent or the toggle state.</summary>
-    private void DetachChannel()
-    {
-        if (_channel is null) return;
-        _channel.PlaybackStopped -= OnPlaybackStopped;
-        _engine.RemoveOutput(_channel);
-        _channel = null;
-    }
-
     /// <summary>
     /// Deactivate WITHOUT clearing the ON intent - used for mechanical stops (engine restart,
     /// device loss, sleep). The watchdog reactivates the channel when it becomes possible.
     /// </summary>
-    public void Suspend()
-    {
-        DetachChannel();
-        if (!_isActive) return;
-        _isActive = false;
-        OnPropertyChanged(nameof(IsActive));
-    }
+    public void Suspend() => _lifecycle.Suspend();
 
     /// <summary>
-    /// Watchdog hook: bring the channel back if the user wants it ON and it can run. Retries
-    /// are budgeted so a persistently failing device is not hammered every tick; the budget
-    /// resets when the device reappears, on resume, or on an explicit user action.
-    /// <paramref name="force"/> (engine restart, resume) bypasses the budget.
+    /// Watchdog hook: bring the channel back if the user wants it ON and it can run.
+    /// <paramref name="force"/> (engine restart, resume) bypasses the retry budget.
     /// </summary>
-    public void TryAutoReactivate(bool force = false)
-    {
-        if (_isActive || !_wantsActive || !IsAvailable) return;
-        if (!_retryBudget.TryConsume(force)) return;
-
-        Activate();
-        if (_isActive)
-        {
-            Log.Write($"Channel '{Name}': auto-reactivated");
-            OnPropertyChanged(nameof(IsActive));
-        }
-    }
+    public void TryAutoReactivate(bool force = false) =>
+        _lifecycle.TryAutoReactivate(_wantsActive && IsAvailable, force);
 
     /// <summary>Give a failing device a fresh retry budget (called on resume).</summary>
-    public void ResetAutoRetry() => _retryBudget.Reset();
-
-    /// <summary>Engine callback (render thread) for an unsolicited output stop.</summary>
-    private void OnPlaybackStopped(OutputChannel channel, Exception? error) =>
-        UiDispatcher.Post(() => HandlePlaybackStopped(channel, error));
-
-    private void HandlePlaybackStopped(OutputChannel channel, Exception? error)
-    {
-        if (!ReferenceEquals(channel, _channel)) return; // already detached or replaced
-        Log.Write($"Channel '{Name}': output died ({error?.Message ?? "no error"}), will reconnect");
-        DetachChannel();
-        _isActive = false;
-        OnPropertyChanged(nameof(IsActive));
-        Status = "Reconnecting...";
-        // Intent is preserved; the mixer watchdog (or resume recovery) reactivates it.
-    }
+    public void ResetAutoRetry() => _lifecycle.ResetAutoRetry();
 
     /// <summary>Mark the saved device as (re)appeared or gone, from the mixer's device sync.</summary>
-    public void SetPresent(bool present)
-    {
-        if (_isPresent == present) return;
-        _isPresent = present;
-        OnPropertyChanged(nameof(IsAvailable));
-        if (!present) Suspend();               // keep the ON intent - it comes back with the device
-        else _retryBudget.Reset();             // fresh device, fresh retry budget
-        RefreshUnavailableStatus();
-    }
+    public void SetPresent(bool present) => _lifecycle.SetPresent(present);
 
     /// <summary>Adopt a replacement endpoint id for the same uniquely named physical output.</summary>
     public void RebindDevice(string deviceId, string deviceName)
     {
         if (deviceId == DeviceId) return;
-        Suspend();
         Log.Write($"Channel '{Name}': rebound endpoint '{DeviceId}' -> '{deviceId}' ({deviceName})");
+        _lifecycle.RebindDevice(deviceId);
         DeviceId = deviceId;
         DeviceName = deviceName;
-        _activation.RebindDevice(deviceId);
-        _isPresent = true;
-        _retryBudget.Reset();
         OnPropertyChanged(nameof(DeviceId));
         OnPropertyChanged(nameof(DeviceName));
         OnPropertyChanged(nameof(IsAvailable));
@@ -321,8 +252,8 @@ public sealed class ChannelViewModel : ViewModelBase
     private void RefreshUnavailableStatus()
     {
         if (_isSource) Status = "= source";
-        else if (!_isPresent) Status = "Offline";
-        else if (!_isActive) Status = "";
+        else if (!_lifecycle.IsPresent) Status = "Offline";
+        else if (!_lifecycle.IsActive) Status = "";
     }
 
     public ChannelDefinition ToDefinition() => new()
