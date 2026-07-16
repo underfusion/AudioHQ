@@ -17,6 +17,7 @@ public sealed class OutputChannel : IDisposable
     private float _gain = 1f;
     private bool _muted;
     private volatile bool _disposed;
+    private volatile bool _writeFailureLogged;
 
     /// <summary>
     /// The channel OWNS this instance (disposed with the channel) - but only once the
@@ -171,6 +172,18 @@ public sealed class OutputChannel : IDisposable
             Log.Write($"OutputChannel '{_deviceName}': backlog exceeded {_maxBacklog.TotalMilliseconds}ms, resynced");
         }
         _buffer.AddSamples(buffer, 0, count);
+    }
+
+    /// <summary>
+    /// Records a failure thrown out of <see cref="Write"/>. Logs the first one only: the
+    /// capture callback runs ~100 times a second, so a permanently broken output would
+    /// otherwise flood the log with the same line.
+    /// </summary>
+    internal void NoteWriteFailure(Exception ex)
+    {
+        if (_writeFailureLogged) return;
+        _writeFailureLogged = true;
+        Log.Write($"OutputChannel '{_deviceName}': write failed, this output is dropping audio: {ex.Message}");
     }
 
     public void Dispose()

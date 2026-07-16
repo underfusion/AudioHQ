@@ -3,6 +3,15 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.10 - 2026-07-16
+
+### Fixed
+- One failing output can no longer interrupt audio to the other outputs. A channel
+  that throws while receiving audio is now logged once and skipped instead of
+  unwinding the capture callback and cutting every other output with it.
+- The source-loss watchdog can no longer miss a capture-stopped transition: the
+  capturing flag is now published correctly across threads.
+
 ## 0.5.9 - 2026-07-16
 
 ### Fixed

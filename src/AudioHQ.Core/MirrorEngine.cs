@@ -25,8 +25,12 @@ public sealed class MirrorEngine : IDisposable
     /// have to read a property off a possibly-dead COM object.</summary>
     public string? SourceId { get; private set; }
 
-    /// <summary>True while a capture is live (as far as the driver has told us).</summary>
-    public bool IsCapturing { get; private set; }
+    /// <summary>True while a capture is live (as far as the driver has told us).
+    /// Volatile: written from the capture thread (<see cref="OnRecordingStopped"/>) and read
+    /// by the UI watchdog, which must never miss a source-loss transition.</summary>
+    public bool IsCapturing => _isCapturing;
+
+    private volatile bool _isCapturing;
 
     /// <summary>
     /// Raised when capture stops on its own - the source device was removed, disabled or
@@ -45,7 +49,7 @@ public sealed class MirrorEngine : IDisposable
         _capture.DataAvailable += OnDataAvailable;
         _capture.RecordingStopped += OnRecordingStopped;
         _capture.StartRecording();
-        IsCapturing = true;
+        _isCapturing = true;
         Log.Write($"Engine.Start: capturing OK, format={_capture.WaveFormat}");
     }
 
@@ -53,7 +57,7 @@ public sealed class MirrorEngine : IDisposable
     {
         // Stop() unsubscribes this handler before stopping, so reaching here always means an
         // unsolicited stop: the source endpoint went away (unplugged/disabled/invalidated).
-        IsCapturing = false;
+        _isCapturing = false;
         Log.Write($"Engine: capture stopped unexpectedly (source lost). error={e.Exception?.Message ?? "(none)"}");
         SourceLost?.Invoke(e.Exception);
     }
@@ -63,7 +67,19 @@ public sealed class MirrorEngine : IDisposable
         // Lock-free: reads the published snapshot. A channel removed concurrently may still
         // receive one last Write; OutputChannel guards that with its disposed flag.
         foreach (var output in _outputsSnapshot)
-            output.Write(e.Buffer, e.BytesRecorded);
+        {
+            // Per-output guard: one sick channel throwing must not unwind this callback, which
+            // would cut audio to every other output. Costs nothing on the happy path and takes
+            // no lock - this runs on the capture thread ~100 times a second.
+            try
+            {
+                output.Write(e.Buffer, e.BytesRecorded);
+            }
+            catch (Exception ex)
+            {
+                output.NoteWriteFailure(ex);
+            }
+        }
     }
 
     public OutputChannel AddOutput(MMDevice device, int latencyMs = 100)
@@ -119,7 +135,7 @@ public sealed class MirrorEngine : IDisposable
             }
             _capture = null;
         }
-        IsCapturing = false;
+        _isCapturing = false;
 
         OutputChannel[] outputs;
         lock (_lock)

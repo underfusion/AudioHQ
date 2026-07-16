@@ -62,7 +62,10 @@ Key decisions:
 
 - **Fan-out at the byte level.** One capture feeds N independent per-device
   pipelines; each `OutputChannel` owns its buffer, resampler, EQ, gain and `WasapiOut`.
-  A slow/failed device cannot stall the others (worst case it resyncs).
+  A slow/failed device cannot stall the others (worst case it resyncs). The
+  capture callback backs this up with a per-output `try/catch`: a channel that
+  throws is logged once (`OutputChannel.NoteWriteFailure`) and skipped, so it
+  cannot unwind the callback and cut audio to the rest.
 - **Drift compensation (`AdaptiveResampler`).** The capture clock and each
   output clock run independently, so a fixed-ratio resample lets the backlog
   slowly creep (delay grows, then a hard flush jumps it back - audible on low
