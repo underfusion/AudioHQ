@@ -31,9 +31,10 @@ public sealed class AppMixerDefinition
 }
 
 /// <summary>
-/// User-curated mixer state persisted to settings.json next to the exe:
-/// the chosen source, latency, and the ordered list of named channels.
-/// Survives restarts; missing/corrupt file falls back to defaults (first run).
+/// User-curated mixer state persisted to settings.json in %APPDATA%\AudioHQ (see
+/// <see cref="SettingsLocation"/>): the chosen source, latency, and the ordered list of named
+/// channels. Survives restarts, rebuilds and framework retargets; a missing/corrupt file falls
+/// back to defaults (first run).
 /// </summary>
 public sealed class MixerSettings
 {
@@ -65,8 +66,7 @@ public sealed class MixerSettings
     public bool LaunchMinimized { get; set; }
     public bool RunWithWindows { get; set; }
 
-    private static string FilePath =>
-        Path.Combine(AppContext.BaseDirectory, "settings.json");
+    private static string FilePath => SettingsLocation.FilePath;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -74,13 +74,14 @@ public sealed class MixerSettings
     {
         try
         {
-            if (!File.Exists(FilePath))
+            var path = ResolveLoadPath();
+            if (path is null)
             {
                 Log.Write("MixerSettings: no settings.json, using defaults (first run)");
                 return new MixerSettings();
             }
 
-            var json = File.ReadAllText(FilePath);
+            var json = File.ReadAllText(path);
             var settings = JsonSerializer.Deserialize<MixerSettings>(json);
             if (settings is null)
             {
@@ -99,6 +100,34 @@ public sealed class MixerSettings
     }
 
     /// <summary>
+    /// Picks the file to load: the live %APPDATA% copy, or a pre-0.5.35 file left next to the
+    /// exe, which is copied across on the way so later saves land in one place. The original is
+    /// deliberately left behind rather than deleted. Returns null when neither exists (first run).
+    /// </summary>
+    private static string? ResolveLoadPath()
+    {
+        var path = FilePath;
+        if (File.Exists(path)) return path;
+
+        var legacy = SettingsLocation.LegacyFilePath;
+        if (!File.Exists(legacy)) return null;
+
+        try
+        {
+            Directory.CreateDirectory(SettingsLocation.Directory);
+            File.Copy(legacy, path);
+            Log.Write($"MixerSettings: migrated settings from '{legacy}' to '{path}'");
+            return path;
+        }
+        catch (Exception ex)
+        {
+            // Best-effort: read the old file where it lies rather than lose the user's setup.
+            Log.Write($"MixerSettings: migration from '{legacy}' failed, loading it in place: {ex.Message}");
+            return legacy;
+        }
+    }
+
+    /// <summary>
     /// Writes settings.json atomically: serialize to a temp file next to it, flush to disk, then
     /// swap it in. Autosave means this runs while the user is still working, so a forced kill or
     /// power loss mid-write must never leave a truncated settings.json behind - the old file
@@ -110,6 +139,9 @@ public sealed class MixerSettings
         var temp = path + ".tmp";
         try
         {
+            // %APPDATA%\AudioHQ does not exist on a first run, and the temp file lands inside it.
+            Directory.CreateDirectory(SettingsLocation.Directory);
+
             var json = JsonSerializer.Serialize(this, JsonOptions);
 
             using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))

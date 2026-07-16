@@ -3,6 +3,30 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.35 - 2026-07-16
+
+### Fixed
+- `settings.json` now lives in `%APPDATA%\AudioHQ` instead of next to the exe, so it
+  survives rebuilds, framework retargets and a clean checkout. It was being treated as
+  a build artifact: the 0.5.34 net7.0 -> net10.0 retarget renamed the output folder
+  (`bin/Debug/net7.0-windows` -> `net10.0-windows`), the app found no settings in the
+  new folder and silently started from defaults, losing channels, EQ presets, tray
+  options and window position. Cleaning `bin/` deleted the setup outright.
+- Existing settings are migrated once on load: a `settings.json` found beside the exe
+  is copied into `%APPDATA%\AudioHQ` and used from there on, so an upgrade keeps the
+  user's setup without any manual step. The original file is left in place rather than
+  deleted, and if the copy fails the old file is read where it lies instead of falling
+  back to defaults.
+
+### Added
+- `SettingsLocation`: single place resolving the settings directory, the file name and
+  the legacy (beside-the-exe) path. Both directories are settable so tests redirect
+  them to a scratch folder and never touch the real user profile.
+- Four `MixerSettingsAtomicSaveTests` cases: the migration copies across and keeps the
+  original, the live file wins over a stale legacy file, migration happens only once so
+  later edits are not overwritten, and `Save` creates the settings directory on a first
+  run into a fresh profile.
+
 ## 0.5.34 - 2026-07-16
 
 ### Changed

@@ -278,6 +278,17 @@ and reconnects, so the app never spins on, e.g., a device locked in exclusive mo
     shutdown. `MixerSettings.Save` is atomic (write `settings.json.tmp`, flush to
     disk, then `File.Replace`/`Move`), so a kill mid-write cannot truncate the file;
     the previous settings survive. Covered by `MixerSettingsAtomicSaveTests`.
+  - **Where settings live.** `SettingsLocation` resolves `settings.json` to
+    `%APPDATA%\AudioHQ`. Settings are user data, not a build artifact: before 0.5.35
+    the file sat next to the exe (`AppContext.BaseDirectory`), so retargeting
+    net7.0 -> net10.0 renamed the output folder out from under it and the app came up
+    with defaults, and cleaning `bin/` deleted the user's setup outright.
+    `MixerSettings.Load` migrates a legacy file found beside the exe once, copying it
+    across (the original is left in place, never deleted) and preferring the
+    `%APPDATA%` copy from then on; if the copy fails it reads the old file where it
+    lies rather than lose the setup. `Save` creates the directory on first run. Both
+    directories on `SettingsLocation` are settable so tests redirect them to a scratch
+    folder instead of the real user profile.
   - Tray/startup options are owned by `TrayOptions`
     (`MixerTrayOptionsViewModel`), which updates `MixerSettings`, saves changes,
     and synchronizes the Run-with-Windows registry entry.

@@ -7,25 +7,50 @@ namespace AudioHQ.Tests;
 /// <summary>
 /// Covers the real settings.json write path. Autosave writes while the user is still working,
 /// so Save must be atomic (temp file + swap) and must leave a file Load can actually read -
-/// on first run (no existing file) and on every later overwrite.
+/// on first run (no existing file) and on every later overwrite. Also covers the one-time
+/// migration of a pre-0.5.35 file sitting next to the exe.
+///
+/// SettingsLocation is redirected to a scratch folder for the duration: these tests must never
+/// touch the real %APPDATA%\AudioHQ settings.
 /// </summary>
 public sealed class MixerSettingsAtomicSaveTests : IDisposable
 {
-    private readonly string _path = Path.Combine(AppContext.BaseDirectory, "settings.json");
-    private readonly string _tempPath = Path.Combine(AppContext.BaseDirectory, "settings.json.tmp");
-    private readonly string? _original;
+    private readonly string _dir;
+    private readonly string _legacyDir;
+    private readonly string _path;
+    private readonly string _tempPath;
+    private readonly string _originalDir;
+    private readonly string _originalLegacyDir;
 
     public MixerSettingsAtomicSaveTests()
     {
-        if (File.Exists(_path)) _original = File.ReadAllText(_path);
-        File.Delete(_path);
+        var scratch = Path.Combine(AppContext.BaseDirectory, "settings-tests", Guid.NewGuid().ToString("N"));
+        _dir = Path.Combine(scratch, "live");
+        _legacyDir = Path.Combine(scratch, "legacy");
+        Directory.CreateDirectory(_dir);
+        Directory.CreateDirectory(_legacyDir);
+
+        _originalDir = SettingsLocation.Directory;
+        _originalLegacyDir = SettingsLocation.LegacyDirectory;
+        SettingsLocation.Directory = _dir;
+        SettingsLocation.LegacyDirectory = _legacyDir;
+
+        _path = Path.Combine(_dir, SettingsLocation.FileName);
+        _tempPath = _path + ".tmp";
     }
 
     public void Dispose()
     {
-        if (_original is not null) File.WriteAllText(_path, _original);
-        else File.Delete(_path);
-        File.Delete(_tempPath);
+        SettingsLocation.Directory = _originalDir;
+        SettingsLocation.LegacyDirectory = _originalLegacyDir;
+        try
+        {
+            Directory.Delete(Path.GetDirectoryName(_dir)!, recursive: true);
+        }
+        catch (IOException)
+        {
+            // A leftover scratch folder is not worth failing a green test over.
+        }
     }
 
     [Fact]
@@ -38,6 +63,18 @@ public sealed class MixerSettingsAtomicSaveTests : IDisposable
         var loaded = MixerSettings.Load();
         Assert.Equal("first-run", loaded.SourceDeviceId);
         Assert.Equal(40, loaded.LatencyMs);
+    }
+
+    [Fact]
+    public void Save_CreatesSettingsDirectory_WhenItDoesNotExistYet()
+    {
+        // %APPDATA%\AudioHQ is absent before the very first save.
+        Directory.Delete(_dir, recursive: true);
+
+        new MixerSettings { SourceDeviceId = "fresh-profile" }.Save();
+
+        Assert.True(File.Exists(_path));
+        Assert.Equal("fresh-profile", MixerSettings.Load().SourceDeviceId);
     }
 
     [Fact]
@@ -78,5 +115,53 @@ public sealed class MixerSettingsAtomicSaveTests : IDisposable
         var loaded = MixerSettings.Load();
         Assert.Equal("survivor", loaded.SourceDeviceId);
         Assert.Equal(55, loaded.LatencyMs);
+    }
+
+    [Fact]
+    public void Load_MigratesLegacyFileFromBesideTheExe_WhenNoLiveFileExists()
+    {
+        WriteLegacy("legacy-source", latencyMs: 75);
+
+        var loaded = MixerSettings.Load();
+
+        Assert.Equal("legacy-source", loaded.SourceDeviceId);
+        Assert.Equal(75, loaded.LatencyMs);
+        // The copy must land in the new location so later saves have one home...
+        Assert.True(File.Exists(_path));
+        // ...and the original stays put rather than being destroyed.
+        Assert.True(File.Exists(Path.Combine(_legacyDir, SettingsLocation.FileName)));
+    }
+
+    [Fact]
+    public void Load_PrefersLiveFile_OverStaleLegacyFile()
+    {
+        WriteLegacy("legacy-source", latencyMs: 75);
+        new MixerSettings { SourceDeviceId = "live-source", LatencyMs = 20 }.Save();
+
+        var loaded = MixerSettings.Load();
+
+        Assert.Equal("live-source", loaded.SourceDeviceId);
+        Assert.Equal(20, loaded.LatencyMs);
+    }
+
+    [Fact]
+    public void Load_MigratesOnlyOnce_SoLaterEditsAreNotOverwritten()
+    {
+        WriteLegacy("legacy-source", latencyMs: 75);
+        MixerSettings.Load();
+
+        // The user changes the source after migrating; the stale legacy file must not win.
+        new MixerSettings { SourceDeviceId = "changed-after-migration", LatencyMs = 15 }.Save();
+
+        var loaded = MixerSettings.Load();
+        Assert.Equal("changed-after-migration", loaded.SourceDeviceId);
+        Assert.Equal(15, loaded.LatencyMs);
+    }
+
+    private void WriteLegacy(string sourceDeviceId, int latencyMs)
+    {
+        SettingsLocation.Directory = _legacyDir;
+        new MixerSettings { SourceDeviceId = sourceDeviceId, LatencyMs = latencyMs }.Save();
+        SettingsLocation.Directory = _dir;
     }
 }
