@@ -5,6 +5,15 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <!-- Theme first: everything below resolves StaticResource against these.
+                     Colors -> Semantic depends on that order too. -->
+                <ResourceDictionary Source="Resources/Theme/Colors.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Semantic.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Typography.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Spacing.xaml" />
+                <ResourceDictionary Source="Resources/Theme/Motion.xaml" />
+
+                <!-- Then converters/layout tokens and control styles. -->
                 <ResourceDictionary Source="Resources/Tokens.xaml" />
                 <ResourceDictionary Source="Resources/StripStyles.xaml" />
                 <ResourceDictionary Source="Resources/AppMixerStyles.xaml" />

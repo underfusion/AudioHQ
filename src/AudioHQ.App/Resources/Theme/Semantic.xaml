@@ -1,0 +1,43 @@
+<!--
+    Semantic brushes - what a colour is FOR, not what it is.
+
+    Screens and styles bind to these; they never reach into Colors.xaml directly. Swapping a
+    palette value in Colors.xaml then re-themes everything using that role.
+
+    Every brush is frozen: they are shared app-wide and never animated, so freezing drops
+    per-use change tracking.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
+
+    <!-- Surfaces -->
+    <SolidColorBrush x:Key="Brush.Surface" po:Freeze="True" Color="{StaticResource Color.Background}" />
+    <SolidColorBrush x:Key="Brush.SurfaceRaised" po:Freeze="True" Color="{StaticResource Color.Card}" />
+    <SolidColorBrush x:Key="Brush.SurfaceAccent" po:Freeze="True" Color="{StaticResource Color.MasterCard}" />
+    <SolidColorBrush x:Key="Brush.BorderAccent" po:Freeze="True" Color="{StaticResource Color.MasterBorder}" />
+    <SolidColorBrush x:Key="Brush.Control" po:Freeze="True" Color="{StaticResource Color.Control}" />
+    <SolidColorBrush x:Key="Brush.ComboPopup" po:Freeze="True" Color="{StaticResource Color.ComboPopup}" />
+    <SolidColorBrush x:Key="Brush.ScrollTrack" po:Freeze="True" Color="{StaticResource Color.ScrollTrack}" />
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="Brush.TextPrimary" po:Freeze="True" Color="{StaticResource Color.TextPrimary}" />
+    <SolidColorBrush x:Key="Brush.TextMuted" po:Freeze="True" Color="{StaticResource Color.TextMuted}" />
+    <!-- Text/glyphs sitting ON a filled accent (green ON pill, red remove button). -->
+    <SolidColorBrush x:Key="Brush.OnAccent" po:Freeze="True" Color="{StaticResource Color.White}" />
+
+    <!-- Accents by meaning -->
+    <SolidColorBrush x:Key="Brush.AccentPositive" po:Freeze="True" Color="{StaticResource Color.Green}" />
+    <SolidColorBrush x:Key="Brush.AccentNegative" po:Freeze="True" Color="{StaticResource Color.Red}" />
+    <SolidColorBrush x:Key="Brush.AccentInfo" po:Freeze="True" Color="{StaticResource Color.Blue}" />
+
+    <!-- Fader ramp (gain: unity -> boost -> max boost). -->
+    <SolidColorBrush x:Key="Brush.FaderGreen" po:Freeze="True" Color="{StaticResource Color.FaderGreen}" />
+    <SolidColorBrush x:Key="Brush.FaderAmber" po:Freeze="True" Color="{StaticResource Color.FaderAmber}" />
+    <SolidColorBrush x:Key="Brush.FaderRed" po:Freeze="True" Color="{StaticResource Color.FaderRed}" />
+
+    <!-- Notification bubbles -->
+    <SolidColorBrush x:Key="Brush.InfoBubble" po:Freeze="True" Color="{StaticResource Color.InfoBubble}" />
+    <SolidColorBrush x:Key="Brush.ErrorBubble" po:Freeze="True" Color="{StaticResource Color.ErrorBubble}" />
+
+</ResourceDictionary>

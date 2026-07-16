@@ -3,6 +3,13 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.15 - 2026-07-16
+
+### Changed
+- Internal groundwork with no visible change: colors, text sizes, spacing, corner radii
+  and animation timing now have a single source of truth under `Resources/Theme/`.
+  Every color hex is defined once, and the previous style keys forward to it.
+
 ## 0.5.14 - 2026-07-16
 
 ### Changed

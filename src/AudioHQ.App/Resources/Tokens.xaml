@@ -5,10 +5,7 @@
         <local:GainToBrushConverter x:Key="GainToBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
-        <!-- Spacing tokens: S=6 half, M=12 normal, L=24 double -->
-        <sys:Double x:Key="SpacingS">6</sys:Double>
-        <sys:Double x:Key="SpacingM">12</sys:Double>
-        <sys:Double x:Key="SpacingL">24</sys:Double>
+        <!-- Spacing tokens now live in Theme/Spacing.xaml. -->
         <Thickness x:Key="AppMixerRegionMargin">6,12,0,12</Thickness>
         <Thickness x:Key="AppMixerPanelClosedMargin">0</Thickness>
         <Thickness x:Key="AppMixerPanelOpenMargin">6,0,6,0</Thickness>
@@ -20,19 +17,20 @@
         <sys:Double x:Key="AppMixerPanelWidth">244</sys:Double>
         <Thickness x:Key="MainContentMargin">6,12,12,12</Thickness>
 
-        <SolidColorBrush x:Key="BgBrush" Color="#FF161A22" />
-        <SolidColorBrush x:Key="CardBrush" Color="#FF222834" />
-        <SolidColorBrush x:Key="MasterCardBrush" Color="#FF2A3550" />
-        <SolidColorBrush x:Key="MasterBorderBrush" Color="#FF4A557A" />
-        <SolidColorBrush x:Key="TextBrush" Color="#FFE2E7F0" />
-        <SolidColorBrush x:Key="DimTextBrush" Color="#FF8B93A5" />
-        <SolidColorBrush x:Key="ButtonBrush" Color="#FF2D3545" />
-        <SolidColorBrush x:Key="AccentGreen" Color="#FF22C55E" />
-        <SolidColorBrush x:Key="AccentRed" Color="#FFEF4444" />
-        <SolidColorBrush x:Key="AccentBlue" Color="#FF3B82F6" />
-
-        <!-- Notification bubble fills: a faint tint of the accent so the frame reads as a
-             toast (info = blue, error = red) rather than as loose coloured text. -->
-        <SolidColorBrush x:Key="InfoBubbleBrush" Color="#FF1C2A40" />
-        <SolidColorBrush x:Key="ErrorBubbleBrush" Color="#FF35222A" />
+        <!-- LEGACY ALIASES. The palette itself lives in Theme/Colors.xaml and the roles in
+             Theme/Semantic.xaml; these keys only forward to it so existing views keep
+             working while they migrate. Do not add new ones, and delete each alias once its
+             last consumer points at the Brush.* role instead. -->
+        <SolidColorBrush x:Key="BgBrush" Color="{StaticResource Color.Background}" />
+        <SolidColorBrush x:Key="CardBrush" Color="{StaticResource Color.Card}" />
+        <SolidColorBrush x:Key="MasterCardBrush" Color="{StaticResource Color.MasterCard}" />
+        <SolidColorBrush x:Key="MasterBorderBrush" Color="{StaticResource Color.MasterBorder}" />
+        <SolidColorBrush x:Key="TextBrush" Color="{StaticResource Color.TextPrimary}" />
+        <SolidColorBrush x:Key="DimTextBrush" Color="{StaticResource Color.TextMuted}" />
+        <SolidColorBrush x:Key="ButtonBrush" Color="{StaticResource Color.Control}" />
+        <SolidColorBrush x:Key="AccentGreen" Color="{StaticResource Color.Green}" />
+        <SolidColorBrush x:Key="AccentRed" Color="{StaticResource Color.Red}" />
+        <SolidColorBrush x:Key="AccentBlue" Color="{StaticResource Color.Blue}" />
+        <SolidColorBrush x:Key="InfoBubbleBrush" Color="{StaticResource Color.InfoBubble}" />
+        <SolidColorBrush x:Key="ErrorBubbleBrush" Color="{StaticResource Color.ErrorBubble}" />
 </ResourceDictionary>
