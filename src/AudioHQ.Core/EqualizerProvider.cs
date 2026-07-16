@@ -17,8 +17,13 @@ public sealed class EqualizerProvider : ISampleProvider
     private readonly int _sampleRate;
     private readonly object _lock = new();
 
-    private BiQuadFilter[,]? _filters;  // [channel, band]; null while disabled
-    private BiQuadFilter[,]? _lowPass;  // [channel, stage]; null when the high-cut is off
+    // Flat, not rectangular: [channel * _bands + band]. A 2-D array access costs an extra
+    // multiply and bounds check per element, and Read touches these bands x channels times
+    // per sample. Same layout rule for _lowPass: [channel * _lpStages + stage].
+    private BiQuadFilter[]? _filters;   // null while disabled
+    private BiQuadFilter[]? _lowPass;   // null when the high-cut is off
+    private int _bands;
+    private int _lpStages;
     private bool _enabled;
 
     public EqualizerProvider(ISampleProvider source)
@@ -42,7 +47,13 @@ public sealed class EqualizerProvider : ISampleProvider
         if (eq is null || !eq.Enabled)
         {
             bool wasEnabled;
-            lock (_lock) { wasEnabled = _enabled; _enabled = false; _filters = null; _lowPass = null; }
+            lock (_lock)
+            {
+                wasEnabled = _enabled;
+                _enabled = false;
+                _filters = null; _bands = 0;
+                _lowPass = null; _lpStages = 0;
+            }
             if (wasEnabled) Log.Write($"Equalizer: disabled ({_channels}ch, {_sampleRate}Hz)");
             return;
         }
@@ -59,8 +70,8 @@ public sealed class EqualizerProvider : ISampleProvider
         bool rebuilt;
         lock (_lock)
         {
-            rebuilt = _filters is null || _filters.GetLength(1) != bands;
-            if (rebuilt) _filters = new BiQuadFilter[_channels, bands];
+            rebuilt = _filters is null || _bands != bands;
+            if (rebuilt) { _filters = new BiQuadFilter[_channels * bands]; _bands = bands; }
 
             for (int b = 0; b < bands; b++)
             {
@@ -73,10 +84,11 @@ public sealed class EqualizerProvider : ISampleProvider
                 float freq = Math.Min(freqs[b], _sampleRate / 2f - 1f);
                 for (int c = 0; c < _channels; c++)
                 {
+                    int i = c * bands + b;
                     if (rebuilt)
-                        _filters![c, b] = BiQuadFilter.PeakingEQ(_sampleRate, freq, q, gainDb);
+                        _filters![i] = BiQuadFilter.PeakingEQ(_sampleRate, freq, q, gainDb);
                     else
-                        _filters![c, b].SetPeakingEq(_sampleRate, freq, q, gainDb);
+                        _filters![i].SetPeakingEq(_sampleRate, freq, q, gainDb);
                 }
             }
 
@@ -85,18 +97,20 @@ public sealed class EqualizerProvider : ISampleProvider
             if (lpStages == 0)
             {
                 _lowPass = null;
+                _lpStages = 0;
             }
             else
             {
-                bool rebuildLp = _lowPass is null || _lowPass.GetLength(1) != lpStages;
-                if (rebuildLp) _lowPass = new BiQuadFilter[_channels, lpStages];
+                bool rebuildLp = _lowPass is null || _lpStages != lpStages;
+                if (rebuildLp) { _lowPass = new BiQuadFilter[_channels * lpStages]; _lpStages = lpStages; }
                 for (int s = 0; s < lpStages; s++)
                     for (int c = 0; c < _channels; c++)
                     {
+                        int i = c * lpStages + s;
                         if (rebuildLp)
-                            _lowPass![c, s] = BiQuadFilter.LowPassFilter(_sampleRate, (float)cutoff, 0.707f);
+                            _lowPass![i] = BiQuadFilter.LowPassFilter(_sampleRate, (float)cutoff, 0.707f);
                         else
-                            _lowPass![c, s].SetLowPassFilter(_sampleRate, (float)cutoff, 0.707f);
+                            _lowPass![i].SetLowPassFilter(_sampleRate, (float)cutoff, 0.707f);
                     }
             }
 
@@ -115,16 +129,20 @@ public sealed class EqualizerProvider : ISampleProvider
         lock (_lock)
         {
             if (!_enabled || _filters is null) return read;
-            int bands = _filters.GetLength(1);
-            int lpStages = _lowPass?.GetLength(1) ?? 0;
+            var filters = _filters;
+            var lowPass = _lowPass;
+            int bands = _bands;
+            int lpStages = lowPass is null ? 0 : _lpStages;
             for (int n = 0; n < read; n++)
             {
                 int c = n % _channels;
                 float s = buffer[offset + n];
+                int fBase = c * bands;
                 for (int b = 0; b < bands; b++)
-                    s = _filters[c, b].Transform(s);
+                    s = filters[fBase + b].Transform(s);
+                int lpBase = c * lpStages;
                 for (int st = 0; st < lpStages; st++)
-                    s = _lowPass![c, st].Transform(s);
+                    s = lowPass![lpBase + st].Transform(s);
                 buffer[offset + n] = s;
             }
         }

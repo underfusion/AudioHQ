@@ -3,6 +3,21 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.31 - 2026-07-16
+
+### Changed
+- Internal: the equalizer's filter bank now uses a flat array indexed by channel and band
+  instead of a rectangular 2-D array. The per-sample loop runs bands x channels times for
+  every sample, and a 2-D access costs an extra multiply and bounds check each time.
+  Output is unchanged - verified bit-identical against the previous layout across
+  pass-through, band rebuilds, live fader updates, low-pass cascades and disable.
+
+### Added
+- Tests: the equalizer provider is now covered directly - pass-through when off,
+  channel isolation, per-channel filter state, boost/cut at a band's centre frequency,
+  live reconfigure keeping filter state, band-count switches and the low-pass cascade.
+  9 new tests, 120 total.
+
 ## 0.5.30 - 2026-07-16
 
 ### Changed
