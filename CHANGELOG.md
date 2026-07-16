@@ -3,6 +3,12 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.14 - 2026-07-16
+
+### Changed
+- Internal cleanup with no behavior change: the UI-thread marshaling snippet that was
+  hand-copied into three callbacks now lives in one shared `UiDispatcher.Post` helper.
+
 ## 0.5.13 - 2026-07-16
 
 ### Changed

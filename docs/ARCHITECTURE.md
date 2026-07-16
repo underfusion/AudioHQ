@@ -128,6 +128,11 @@ Key decisions:
   thread; `MixerViewModel.OnEngineSourceLost` and
   `ChannelViewModel.OnPlaybackStopped` marshal through the `Dispatcher` before
   touching view state.
+- All UI-thread marshaling goes through one helper, `UiDispatcher.Post` (source
+  lost, playback stopped, power-mode resume). It always uses `BeginInvoke`, never
+  `Invoke`: these callbacks arrive on the audio threads, and a synchronous hop
+  would block capture/render until the UI thread is free. With no `Application`
+  (unit tests, shutdown) it runs the action inline.
 
 ## Device-loss recovery (watchdog, sleep/resume)
 

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using AudioHQ.App;
@@ -131,14 +130,8 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     /// Engine callback (may be off the UI thread) for an unsolicited capture stop. Marshals to
     /// the UI thread and kicks off recovery.
     /// </summary>
-    private void OnEngineSourceLost(Exception? error)
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            dispatcher.BeginInvoke(new Action(() => HandleSourceLost(error)));
-        else
-            HandleSourceLost(error);
-    }
+    private void OnEngineSourceLost(Exception? error) =>
+        UiDispatcher.Post(() => HandleSourceLost(error));
 
     private void HandleSourceLost(Exception? error)
     {
@@ -154,11 +147,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode != PowerModes.Resume) return;
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            dispatcher.BeginInvoke(new Action(_sourceRecovery.BeginResumeRecovery));
-        else
-            _sourceRecovery.BeginResumeRecovery();
+        UiDispatcher.Post(_sourceRecovery.BeginResumeRecovery);
     }
 
     private void NotifySourceChanged()

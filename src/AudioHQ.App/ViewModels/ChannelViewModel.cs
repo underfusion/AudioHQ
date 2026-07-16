@@ -1,5 +1,4 @@
 using System;
-using System.Windows;
 using AudioHQ.Core;
 
 namespace AudioHQ.App.ViewModels;
@@ -277,14 +276,8 @@ public sealed class ChannelViewModel : ViewModelBase
     public void ResetAutoRetry() => _retryBudget.Reset();
 
     /// <summary>Engine callback (render thread) for an unsolicited output stop.</summary>
-    private void OnPlaybackStopped(OutputChannel channel, Exception? error)
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            dispatcher.BeginInvoke(new Action(() => HandlePlaybackStopped(channel, error)));
-        else
-            HandlePlaybackStopped(channel, error);
-    }
+    private void OnPlaybackStopped(OutputChannel channel, Exception? error) =>
+        UiDispatcher.Post(() => HandlePlaybackStopped(channel, error));
 
     private void HandlePlaybackStopped(OutputChannel channel, Exception? error)
     {
