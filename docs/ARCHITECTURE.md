@@ -279,9 +279,13 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
   `AppKey` based on executable path/icon/name, and exposes the session's own
   `Volume` (0..1) and `Muted` via `SimpleAudioVolume`. Every COM access is
   guarded - a session can expire mid-call - so reads fall back to last values and
-  writes are no-ops on a dead session. The wrapper roots its source `MMDevice` so
-  the session COM objects stay valid after the enumerator is gone. The snapshot API
-  itself is synchronous and stateless; the UI decides when to call it.
+  writes are no-ops on a dead session. The wrapper roots only its own
+  `SimpleAudioVolume`: that COM reference is independent of the device and the
+  enumerator, so `ForDefaultRender` disposes the `MMDevice` as soon as the snapshot
+  is built and the rows keep reading AND writing per-app volume/mute afterwards.
+  This was measured, not assumed - without that dispose the 2 s refresh leaked one
+  handle per call (~1800/hour with the panel open) that GC never reclaimed. The
+  snapshot API itself is synchronous and stateless; the UI decides when to call it.
 - **UI side (`AudioHQ.App`).** `AppMixerViewModel` holds the rows
   (`AppSessionViewModel`) and an `IsExpanded`/`IsEmpty` state. `Refresh()` reconciles
   the live snapshot against the existing rows by `AppKey` (update in place / add /

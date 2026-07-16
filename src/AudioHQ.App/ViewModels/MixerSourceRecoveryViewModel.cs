@@ -211,6 +211,9 @@ public sealed class MixerSourceRecoveryViewModel
                 Log.Write($"Device gone after resume: '{old.FriendlyName}'");
                 _unstartableSources.Remove(old.ID);
                 _sources.RemoveAt(i);
+                // Release it like the adopted branch above does: dropping the reference alone
+                // holds the endpoint's COM handles until a GC that may never come.
+                old.Dispose();
             }
         }
 
@@ -302,9 +305,14 @@ public sealed class MixerSourceRecoveryViewModel
         for (int i = _sources.Count - 1; i >= 0; i--)
             if (!currentIds.Contains(_sources[i].ID))
             {
-                Log.Write($"Device removed: '{_sources[i].FriendlyName}'");
-                _unstartableSources.Remove(_sources[i].ID);
+                var removed = _sources[i];
+                Log.Write($"Device removed: '{removed.FriendlyName}'");
+                _unstartableSources.Remove(removed.ID);
                 _sources.RemoveAt(i);
+                // Same as the duplicate branch below: an unreferenced MMDevice still holds its
+                // COM handles until disposed. SelectedSource may still point here, which stays
+                // safe - a disposed MMDevice keeps answering FriendlyName/ID.
+                removed.Dispose();
             }
 
         var knownIds = _sources.Select(d => d.ID).ToHashSet();
