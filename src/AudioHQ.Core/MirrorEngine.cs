@@ -92,14 +92,31 @@ public sealed class MirrorEngine : IDisposable
 
     public void Stop()
     {
+        // Every teardown step is guarded: a source device that already went away makes the
+        // driver throw from Stop/Dispose, and an escaping exception would leave the engine
+        // holding a dead capture and undisposed outputs, so it could never start again.
         if (_capture is not null)
         {
             // Unsubscribe RecordingStopped first so the resulting stop is not mistaken for a
             // lost source (it is an intentional teardown).
             _capture.RecordingStopped -= OnRecordingStopped;
             _capture.DataAvailable -= OnDataAvailable;
-            _capture.StopRecording();
-            _capture.Dispose();
+            try
+            {
+                _capture.StopRecording();
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"Engine.Stop: StopRecording failed: {ex.Message}");
+            }
+            try
+            {
+                _capture.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"Engine.Stop: capture dispose failed: {ex.Message}");
+            }
             _capture = null;
         }
         IsCapturing = false;
@@ -112,9 +129,25 @@ public sealed class MirrorEngine : IDisposable
             _outputsSnapshot = Array.Empty<OutputChannel>();
         }
         foreach (var output in outputs)
-            output.Dispose();
+        {
+            try
+            {
+                output.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"Engine.Stop: output dispose failed: {ex.Message}");
+            }
+        }
 
-        Source?.Dispose();
+        try
+        {
+            Source?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Engine.Stop: source dispose failed: {ex.Message}");
+        }
         Source = null;
         SourceId = null;
     }

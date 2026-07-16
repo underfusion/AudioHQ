@@ -364,6 +364,12 @@ it touches per-application Windows volumes, not the capture/fan-out pipeline.
 - `AudioHQ.Core.Log` appends to `audiohq.log` next to the exe; it swallows
   its own failures. Write a log line at every device/engine decision point
   (start, init mode, fallback, resync, failure).
+- Teardown never throws. `MirrorEngine.Stop` guards each step (stop capture,
+  dispose capture, dispose outputs, dispose source) individually and logs what
+  it swallowed, so a driver that throws on an already-dead device cannot leave
+  the engine holding a stale capture. `Start` calls `Stop` first, so this also
+  makes `Stop` safe to re-enter - the source-loss watchdog
+  (`MixerSourceRecoveryViewModel.TryRecover`) depends on it.
 
 ## Known limitations / upgrade candidates
 

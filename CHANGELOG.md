@@ -3,6 +3,14 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.8 - 2026-07-16
+
+### Fixed
+- Stopping the mirror now always finishes cleanly, even when the source device has
+  already been unplugged or disabled. Every teardown step is guarded individually,
+  so a driver that throws can no longer leave the engine stuck holding a dead
+  capture, which also keeps the source-loss watchdog able to recover.
+
 ## 0.5.7 - 2026-07-15
 
 ### Fixed
