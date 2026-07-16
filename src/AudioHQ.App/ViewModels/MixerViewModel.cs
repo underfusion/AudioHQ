@@ -28,6 +28,7 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     private readonly MixerSettings _settings;
     private readonly EqPresetStore _eqPresets;
     private readonly DispatcherTimer _healthTimer;
+    private readonly DispatcherTimer _autosaveTimer;
     private readonly MixerStatusViewModel _status = new();
     private readonly MixerTrayOptionsViewModel _trayOptions;
     private readonly MixerChannelCollectionViewModel _channelCollection;
@@ -94,6 +95,10 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         FocusChannelCommand = _channelCollection.FocusChannelCommand;
         _engine.SourceLost += OnEngineSourceLost;
 
+        // Debounced autosave. Created before _loaded goes true, because Save() disarms it.
+        _autosaveTimer = new DispatcherTimer { Interval = AutosaveDelay };
+        _autosaveTimer.Tick += (_, _) => FlushPendingSave();
+
         foreach (var device in AudioDevices.GetActiveRenderDevices())
             Sources.Add(device);
 
@@ -109,6 +114,9 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         // Resume hint. Known to be missed on some Modern Standby machines, hence the
         // clock-jump fallback in HealthCheck.
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
+        // Windows logoff/shutdown: Dispose is not guaranteed to run, so flush here.
+        SystemEvents.SessionEnding += OnSessionEnding;
 
         // Background watchdog: keeps the device list current, recovers the engine if the
         // source drops out and reactivates wanted channels (see HealthCheck).
@@ -136,6 +144,12 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     {
         _sourceRecovery.HandleSourceLost(error);
     }
+
+    /// <summary>
+    /// Windows is logging off or shutting down. Fires on the UI thread; write pending edits
+    /// straight away rather than waiting out the debounce we may not have time for.
+    /// </summary>
+    private void OnSessionEnding(object sender, SessionEndingEventArgs e) => FlushPendingSave();
 
     private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
@@ -207,11 +221,39 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     /// <summary>Hide the notification bubble.</summary>
     private void ClearStatus() => _status.Clear();
 
-    private void MarkDirty() => _dirty = true;
+    /// <summary>
+    /// Debounce window for autosave. Long enough that dragging a fader (which raises a change
+    /// per pixel) collapses into a single write when the user lets go, short enough that an
+    /// edit is on disk before a realistic crash or forced kill.
+    /// </summary>
+    private static readonly TimeSpan AutosaveDelay = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Records an unsaved edit and (re)arms the autosave debounce. Settings used to flush only
+    /// from Dispose, which never runs while the window is hidden in the tray, so a forced
+    /// shutdown lost every edit made since launch.
+    /// </summary>
+    private void MarkDirty()
+    {
+        _dirty = true;
+        if (!_loaded) return;
+        // Restart the countdown: the timer fires once, AutosaveDelay after the LAST edit,
+        // so a fader drag writes once at the end instead of per change notification.
+        _autosaveTimer.Stop();
+        _autosaveTimer.Start();
+    }
+
+    /// <summary>Writes pending edits now and disarms the debounce. No-op when nothing is dirty.</summary>
+    public void FlushPendingSave()
+    {
+        _autosaveTimer.Stop();
+        if (_dirty) Save();
+    }
 
     private void Save()
     {
         if (!_loaded) return;
+        _autosaveTimer.Stop();
         MixerSettingsProjection.Apply(
             _settings,
             _sourceRecovery.PreferredSourceId,
@@ -227,6 +269,8 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        SystemEvents.SessionEnding -= OnSessionEnding;
+        _autosaveTimer?.Stop();
         _healthTimer?.Stop();
         _channelCollection.PropertyChanged -= ChannelCollection_PropertyChanged;
         _engine.SourceLost -= OnEngineSourceLost;

@@ -331,6 +331,14 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    protected override void OnDeactivated(EventArgs e)
+    {
+        // Losing focus is a natural checkpoint: the user may not touch the app again before
+        // it is killed or minimized to tray for hours, so do not wait out the debounce.
+        _viewModel?.FlushPendingSave();
+        base.OnDeactivated(e);
+    }
+
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         SaveWindowPosition();

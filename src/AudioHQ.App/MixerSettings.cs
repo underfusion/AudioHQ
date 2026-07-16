@@ -96,17 +96,48 @@ public sealed class MixerSettings
         }
     }
 
+    /// <summary>
+    /// Writes settings.json atomically: serialize to a temp file next to it, flush to disk, then
+    /// swap it in. Autosave means this runs while the user is still working, so a forced kill or
+    /// power loss mid-write must never leave a truncated settings.json behind - the old file
+    /// survives intact until the replace succeeds. Safe to call repeatedly; never throws.
+    /// </summary>
     public void Save()
     {
+        var path = FilePath;
+        var temp = path + ".tmp";
         try
         {
             var json = JsonSerializer.Serialize(this, JsonOptions);
-            File.WriteAllText(FilePath, json);
+
+            using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(json);
+                writer.Flush();
+                // Force the bytes to disk before the swap, or a crash right after Replace can
+                // leave an entry pointing at unwritten data.
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(path))
+                File.Replace(temp, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            else
+                File.Move(temp, path);
+
             Log.Write($"MixerSettings: saved {Channels.Count} channels");
         }
         catch (Exception ex)
         {
             Log.Write($"MixerSettings.Save FAILED: {ex}");
+            try
+            {
+                if (File.Exists(temp)) File.Delete(temp);
+            }
+            catch (Exception cleanupEx)
+            {
+                Log.Write($"MixerSettings: temp cleanup failed: {cleanupEx.Message}");
+            }
         }
     }
 }

@@ -3,6 +3,18 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.12 - 2026-07-16
+
+### Fixed
+- Volume, EQ and rename edits no longer wait for a clean exit to be saved. They are
+  now written about two seconds after you stop making changes, and immediately when
+  the window loses focus or Windows logs off - so an edit made while AudioHQ sits in
+  the tray survives a crash or a forced shutdown. Dragging a fader still writes only
+  once, when you let go.
+- settings.json is now written atomically (temp file, flushed to disk, then swapped
+  in). Losing power or killing the app mid-save can no longer truncate it; the
+  previous settings stay intact until the new file is complete.
+
 ## 0.5.11 - 2026-07-16
 
 ### Fixed

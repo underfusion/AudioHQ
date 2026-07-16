@@ -232,6 +232,15 @@ and reconnects, so the app never spins on, e.g., a device locked in exclusive mo
   - Save projection is centralized in `MixerSettingsProjection`: `MixerViewModel`
     still decides when to save, but the mapping from live UI state to
     `MixerSettings` is a small tested helper.
+  - **Autosave.** `MarkDirty` (gain, EQ, rename, active) flags the edit and re-arms
+    a 2 s `DispatcherTimer`; the timer fires once after the last change, so a fader
+    drag writes once on release instead of per change notification. `FlushPendingSave`
+    also runs on window `Deactivated`, on `SystemEvents.SessionEnding` and from
+    `Dispose`. This matters because close-to-tray only hides the window, so `Dispose`
+    never runs while the app sits in the tray - edits used to be lost on a forced
+    shutdown. `MixerSettings.Save` is atomic (write `settings.json.tmp`, flush to
+    disk, then `File.Replace`/`Move`), so a kill mid-write cannot truncate the file;
+    the previous settings survive. Covered by `MixerSettingsAtomicSaveTests`.
   - Tray/startup options are owned by `TrayOptions`
     (`MixerTrayOptionsViewModel`), which updates `MixerSettings`, saves changes,
     and synchronizes the Run-with-Windows registry entry.
