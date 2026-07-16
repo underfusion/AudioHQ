@@ -3,6 +3,13 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.22 - 2026-07-16
+
+### Changed
+- Internal: reconciling the audio-device list (which endpoints exist, which channel uses
+  which, and adopting an endpoint Windows recreated under a new id) moved into its own
+  class, separate from the watchdog that decides when to check. No change in behavior.
+
 ## 0.5.21 - 2026-07-16
 
 ### Changed
