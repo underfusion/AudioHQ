@@ -3,6 +3,13 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.13 - 2026-07-16
+
+### Changed
+- A muted output channel now stays muted after a restart, matching how its volume is
+  already remembered. Settings files written before this change still load and their
+  channels come back unmuted.
+
 ## 0.5.12 - 2026-07-16
 
 ### Fixed

@@ -40,7 +40,8 @@ public sealed class ChannelViewModel : ViewModelBase
 
     public ChannelViewModel(MirrorEngine engine, string deviceId, bool present,
         string name, double gain, Func<int> latencyMs, Action onChanged,
-        EqPresetStore presets, EqSettings? eq = null, string? deviceName = null)
+        EqPresetStore presets, EqSettings? eq = null, string? deviceName = null,
+        bool muted = false)
     {
         _engine = engine;
         DeviceId = deviceId;
@@ -50,6 +51,9 @@ public sealed class ChannelViewModel : ViewModelBase
         _presets = presets;
         _activation = new ChannelActivationService(engine, deviceId, latencyMs);
         _gain = gain;
+        // Restored through the field, not the property: the setter would flag settings dirty
+        // just for loading them back.
+        _isMuted = muted;
         _name = string.IsNullOrWhiteSpace(name) ? "Channel" : name;
         _eq = new EqViewModel(eq, ApplyEq);
     }
@@ -173,6 +177,10 @@ public sealed class ChannelViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Mute is persisted, like gain: a channel muted at exit comes back muted. Activation
+    /// re-applies it via <see cref="ChannelActivationService.Activate"/>.
+    /// </summary>
     public bool IsMuted
     {
         get => _isMuted;
@@ -181,6 +189,7 @@ public sealed class ChannelViewModel : ViewModelBase
             _isMuted = value;
             if (_channel is not null) _channel.Muted = value;
             OnPropertyChanged();
+            _onChanged();
         }
     }
 
@@ -329,6 +338,7 @@ public sealed class ChannelViewModel : ViewModelBase
         DeviceName = DeviceName,
         Name = _name,
         Gain = _gain,
+        Muted = _isMuted,
         Active = _wantsActive,
         Focused = _isFocused,
         Eq = _eq.ToSettings(),

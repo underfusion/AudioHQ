@@ -267,7 +267,10 @@ and reconnects, so the app never spins on, e.g., a device locked in exclusive mo
     cleans up failed activation attempts, and maps COM errors to short status
     strings: `0x8889000A` in use (exclusive), `0x88890008` format not supported,
     `0x88890004` device unavailable.
-  - `Gain` (0..2, shown as %) and `IsMuted` write through to the live channel.
+  - `Gain` (0..2, shown as %) and `IsMuted` write through to the live channel. Both
+    are persisted (`ChannelDefinition.Gain` / `.Muted`), so a channel muted at exit
+    comes back muted and activation re-applies it. `Muted` is absent from settings
+    written before it was persisted and defaults to unmuted.
   - `ChannelRetryBudget` limits watchdog auto-reactivation attempts for a
     persistently failing output. Resume recovery, fresh device appearance and
     explicit user toggles reset the budget; forced restart attempts bypass it.

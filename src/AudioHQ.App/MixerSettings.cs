@@ -15,6 +15,8 @@ public sealed class ChannelDefinition
     public string DeviceName { get; set; } = "";
     public string Name { get; set; } = "";
     public double Gain { get; set; } = 1.0;
+    // Absent on channels saved before mute was persisted; defaults to unmuted.
+    public bool Muted { get; set; }
     public bool Active { get; set; }
     public bool Focused { get; set; }
     // Per-channel graphic EQ; null on channels saved before EQ existed (treated as off).
