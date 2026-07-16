@@ -3,6 +3,14 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.21 - 2026-07-16
+
+### Changed
+- Internal: the main window handed its two biggest jobs to dedicated classes - remembering
+  the window position (including the guard that ignores a position on a monitor you have
+  since unplugged) and attaching/detaching the app mixer. No change in behavior; 11 new
+  tests cover the position rules.
+
 ## 0.5.20 - 2026-07-16
 
 ### Changed
