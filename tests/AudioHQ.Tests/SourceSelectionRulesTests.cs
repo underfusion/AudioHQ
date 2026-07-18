@@ -81,4 +81,50 @@ public sealed class SourceSelectionRulesTests
         Assert.False(SourceSelectionRules.ShouldSwitchToPreferred(
             "dev-gone", capturedId: "dev-b", unstartableIds: Array.Empty<string>(), presentIds: Sources));
     }
+
+    [Fact]
+    public void ShouldFollowDefault_WhenNothingIsSavedAndCaptureDriftedOffTheDefault()
+    {
+        // The USB-replug case: the default vanished for seconds, capture fell back to another
+        // device, the default is back - capture must return to it.
+        Assert.True(SourceSelectionRules.ShouldFollowDefault(
+            preferredId: null, defaultId: "dev-a", capturedId: "dev-b",
+            unstartableIds: Array.Empty<string>(), presentIds: Sources));
+    }
+
+    [Fact]
+    public void ShouldFollowDefault_NeverWhenTheUserSavedAnExplicitChoice()
+    {
+        // A saved preference wins over the Windows default; ShouldSwitchToPreferred owns it.
+        Assert.False(SourceSelectionRules.ShouldFollowDefault(
+            preferredId: "dev-c", defaultId: "dev-a", capturedId: "dev-b",
+            unstartableIds: Array.Empty<string>(), presentIds: Sources));
+    }
+
+    [Fact]
+    public void ShouldFollowDefault_NotWhenAlreadyCapturingTheDefault()
+    {
+        Assert.False(SourceSelectionRules.ShouldFollowDefault(
+            preferredId: null, defaultId: "dev-a", capturedId: "dev-a",
+            unstartableIds: Array.Empty<string>(), presentIds: Sources));
+    }
+
+    [Fact]
+    public void ShouldFollowDefault_NotWhenTheDefaultProvedUnstartable()
+    {
+        Assert.False(SourceSelectionRules.ShouldFollowDefault(
+            preferredId: null, defaultId: "dev-a", capturedId: "dev-b",
+            unstartableIds: new[] { "dev-a" }, presentIds: Sources));
+    }
+
+    [Fact]
+    public void ShouldFollowDefault_NotWhenTheDefaultIsUnknownOrAbsent()
+    {
+        Assert.False(SourceSelectionRules.ShouldFollowDefault(
+            preferredId: null, defaultId: null, capturedId: "dev-b",
+            unstartableIds: Array.Empty<string>(), presentIds: Sources));
+        Assert.False(SourceSelectionRules.ShouldFollowDefault(
+            preferredId: null, defaultId: "dev-gone", capturedId: "dev-b",
+            unstartableIds: Array.Empty<string>(), presentIds: Sources));
+    }
 }

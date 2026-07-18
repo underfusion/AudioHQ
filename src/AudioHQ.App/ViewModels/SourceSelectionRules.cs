@@ -43,4 +43,25 @@ public static class SourceSelectionRules
                && !unstartableIds.Contains(preferredId)
                && presentIds.Contains(preferredId);
     }
+
+    /// <summary>
+    /// Whether the watchdog should move capture onto the current system default device: only
+    /// when the user has no saved preference (the mixer then tracks whatever Windows plays
+    /// to), the default is known and present, it is not already the captured source, and it
+    /// has not proven unstartable. Without this, a brief unplug of the default (a USB replug
+    /// flap) leaves capture stranded on the emergency fallback forever.
+    /// </summary>
+    public static bool ShouldFollowDefault(
+        string? preferredId,
+        string? defaultId,
+        string? capturedId,
+        IReadOnlyCollection<string> unstartableIds,
+        IReadOnlyList<string> presentIds)
+    {
+        return preferredId is null
+               && defaultId is not null
+               && defaultId != capturedId
+               && !unstartableIds.Contains(defaultId)
+               && presentIds.Contains(defaultId);
+    }
 }

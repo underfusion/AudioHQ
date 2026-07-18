@@ -23,6 +23,8 @@ public sealed class MixerSourceRecoveryViewModel
     private bool _recovering;
     private int _resumeTicksLeft;
     private DateTime _lastTickUtc = DateTime.UtcNow;
+    private string? _pendingDefaultId;
+    private int _pendingDefaultTicks;
 
     public MixerSourceRecoveryViewModel(
         MirrorEngine engine,
@@ -56,6 +58,13 @@ public sealed class MixerSourceRecoveryViewModel
 
     /// <summary>A tick gap this large means the machine slept through timer time - treat as resume.</summary>
     private static readonly TimeSpan ClockJumpThreshold = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// Consecutive watchdog ticks the system default must stay put before capture follows it
+    /// (~6 s). A replugging USB adapter flips the Windows default back and forth for a few
+    /// seconds; following it instantly would bounce capture across devices.
+    /// </summary>
+    private const int FollowDefaultStableTicks = 2;
 
     public MMDevice? SelectedSource { get; private set; }
     public string? PreferredSourceId { get; private set; }
@@ -107,6 +116,7 @@ public sealed class MixerSourceRecoveryViewModel
             if (_engine.IsCapturing && !sourceGone)
             {
                 TrySwitchToPreferred();
+                TryFollowSystemDefault();
                 ReactivateWantedChannels();
                 return;
             }
@@ -146,6 +156,8 @@ public sealed class MixerSourceRecoveryViewModel
 
     public void RestartEngine(MMDevice source)
     {
+        // Any capture restart invalidates a half-observed default-device change.
+        ResetFollowDefault();
         foreach (var channel in _channels) channel.Suspend();
 
         string sourceId = source.ID;
@@ -263,6 +275,75 @@ public sealed class MixerSourceRecoveryViewModel
             RestartEngine(fallback);
         }
         _sourceChanged();
+    }
+
+    /// <summary>
+    /// With no saved preference the mixer tracks the Windows default device. The instant
+    /// fallback in <see cref="TryRecover"/> keeps audio alive when the captured source
+    /// vanishes; this brings capture back once the default (e.g. a replugged USB adapter,
+    /// or a default the user changed by hand) has been stable for a couple of ticks.
+    /// </summary>
+    private void TryFollowSystemDefault()
+    {
+        if (PreferredSourceId is not null) return;
+
+        string? defaultId;
+        try
+        {
+            using var systemDefault = AudioDevices.GetDefaultRender();
+            defaultId = systemDefault.ID;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"FollowSystemDefault: default lookup failed: {ex.Message}");
+            return;
+        }
+
+        if (!SourceSelectionRules.ShouldFollowDefault(
+                PreferredSourceId, defaultId, _engine.SourceId, _unstartableSources,
+                _sources.Select(d => d.ID).ToList()))
+        {
+            ResetFollowDefault();
+            return;
+        }
+
+        // Time validation: only act on a default that stayed put for consecutive ticks.
+        if (_pendingDefaultId != defaultId)
+        {
+            _pendingDefaultId = defaultId;
+            _pendingDefaultTicks = 1;
+            return;
+        }
+        if (++_pendingDefaultTicks < FollowDefaultStableTicks) return;
+
+        var target = _sources.First(d => d.ID == defaultId);
+        var fallback = SelectedSource;
+        Log.Write($"FollowSystemDefault: no saved preference, Windows default is '{target.FriendlyName}', switching from '{fallback?.FriendlyName ?? "(none)"}'");
+        SelectedSource = target;
+        RestartEngine(target);
+
+        if (_engine.IsCapturing)
+        {
+            _setStatus($"Source followed the Windows default to '{target.FriendlyName}'.", false);
+            _sourceChanged();
+            _save();
+            return;
+        }
+
+        _unstartableSources.Add(target.ID);
+        Log.Write($"FollowSystemDefault: default '{target.FriendlyName}' would not start; staying on fallback");
+        if (fallback is not null)
+        {
+            SelectedSource = fallback;
+            RestartEngine(fallback);
+        }
+        _sourceChanged();
+    }
+
+    private void ResetFollowDefault()
+    {
+        _pendingDefaultId = null;
+        _pendingDefaultTicks = 0;
     }
 
     private MMDevice? ResolveSource()

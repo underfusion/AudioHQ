@@ -240,6 +240,22 @@ is due is `SourceSelectionRules.ShouldSwitchToPreferred`. A device that refuses
 to start is recorded in `_unstartableSources` and not retried until it disconnects
 and reconnects, so the app never spins on, e.g., a device locked in exclusive mode.
 
+**No preference saved: follow the Windows default.** When the user never picked a
+source explicitly (`_preferredSourceId` is null), the intended source is "whatever
+Windows plays to". `TryFollowSystemDefault` runs on the healthy watchdog tick and
+moves capture back onto the system default render device whenever capture has
+drifted off it - the classic case being a USB adapter (PlayStation Link) that
+drops for a few seconds: source loss triggers the instant fallback to another
+device, the adapter returns as the Windows default, and without this rule capture
+stayed stranded on the fallback forever (which also killed any output strip that
+had become the accidental capture source, since a strip never mirrors onto the
+source itself). The switch is time-validated: the default must be the same device
+for `FollowDefaultStableTicks` consecutive ticks (~6 s) before capture follows it,
+so a replug flap that bounces the default cannot bounce capture. The pure decision
+is `SourceSelectionRules.ShouldFollowDefault` (unit tested); unstartable defaults
+go into `_unstartableSources` and capture stays on the fallback, mirroring the
+preferred-source behavior. Status: `Source followed the Windows default to 'X'.`
+
 ## UI model (AudioHQ.App)
 
 - `App.xaml` merges resource dictionaries in dependency order:

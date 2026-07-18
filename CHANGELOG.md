@@ -3,6 +3,31 @@
 All notable changes to AudioHQ. One entry per version bump
 (see the repository versioning conventions - patch bump on every edit batch).
 
+## 0.5.36 - 2026-07-18
+
+### Fixed
+- Capture no longer stays stranded on a fallback device after the real source
+  briefly drops. Repro from the field (audiohq.log): the PlayStation Link USB
+  adapter disappears for ~8 s, source-loss recovery instantly falls back to the
+  TV (Q90A) and reports "Source switched to 'Q90A'", the earbuds return as the
+  Windows default - but with no explicitly saved source preference
+  (`SourceDeviceId` empty) `TrySwitchToPreferred` never fires, so the app kept
+  capturing the TV forever. Side effect: the TV output strip became the capture
+  source (`IsSource`), which disables mirroring onto it, so the TV channel went
+  dead while Windows kept playing to the earbuds.
+- New watchdog rule `TryFollowSystemDefault`: when no source preference is
+  saved, capture follows the Windows default render device. Time-validated - the
+  default must stay the same device for 2 consecutive health ticks (~6 s) before
+  capture switches, so USB replug flaps that bounce the default cannot bounce
+  capture. Unstartable defaults are recorded and skipped exactly like
+  unstartable preferred devices. Status shown: "Source followed the Windows
+  default to 'X'."
+
+### Added
+- `SourceSelectionRules.ShouldFollowDefault` pure rule plus five unit tests
+  (follow when drifted, never with a saved preference, not when already on the
+  default, not when unstartable, not when absent).
+
 ## 0.5.35 - 2026-07-16
 
 ### Fixed
